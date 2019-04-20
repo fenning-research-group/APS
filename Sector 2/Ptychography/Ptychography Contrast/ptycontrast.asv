@@ -269,13 +269,12 @@ function [material_data] = get_material_data(material_names)
     end
     
     if sum(found) < numel(material_names)
-        missing_str = 'Missing material data for: ';
+        fprintf('\n\nCould not find the following:\t');
         for idx = 1:numel(material_names)
             if ~found(idx)
-                missing_str = strcat(missing_str, material_names{idx}, ', ');
+                fprintf(material_names{idx});
             end
         end
-        error(missing_str(1:end-1));
     end
     
     fprintf('\n');
