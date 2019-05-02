@@ -42,10 +42,10 @@ function ptycontrast(material_names, thicknesses, types)
      
 
     % scattering factor database folder
-        scatfact_root_folder = fullfile(fileparts(mfilename), 'include', 'scatfacts');     % this should point to the folder holding tabulated elemental scattering factor data
+        scatfact_root_folder = fullfile(mfilename('fullpath'), 'include', 'scatfacts');     % this should point to the folder holding tabulated elemental scattering factor data
        
     % beamline constants
-        photon_flux_filepath = fullfile(fileparts(mfilename), 'include', 'dummy_beamline_flux.csv');      % this should point to a file with the energy-dependent flux
+        photon_flux_filepath = fullfile(mfilename('fullpath'), 'include', 'dummy_beamline_flux.csv');      % this should point to a file with the energy-dependent flux
         sampling_time = 30;     % measurement dwell time, in seconds
    
     % physical constants
@@ -210,9 +210,9 @@ end
 
 
 function [material_data] = get_material_data(material_names)
-    material_db_path = fullfile('include', 'ptychography_material_database.json');       %filepath to our local ptychography material database
+    material_db_path = fullfile(fileparts(mfilename('fullpath'), 'include', 'ptychography_material_database.json');       %filepath to our local ptychography material database
 %     addpath(fullfile(mfilename('fullpath'), 'include'));
-    disp(material_db_path);
+%     disp(material_db_path);
     %open the file, read the single line (json string) and decode to
     %struct, close file
     
@@ -269,12 +269,13 @@ function [material_data] = get_material_data(material_names)
     end
     
     if sum(found) < numel(material_names)
-        fprintf('\n\nCould not find the following:\t');
+        missing_str = 'Missing material data for: ';
         for idx = 1:numel(material_names)
             if ~found(idx)
-                fprintf(material_names{idx});
+                missing_str = strcat(missing_str, material_names{idx}, ', ');
             end
         end
+        error(missing_str(1:end-1));
     end
     
     fprintf('\n');

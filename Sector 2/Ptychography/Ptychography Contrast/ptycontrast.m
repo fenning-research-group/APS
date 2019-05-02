@@ -40,12 +40,16 @@ function ptycontrast(material_names, thicknesses, types)
 %         material(3).Thickness = 70e-4;               % layer thickness in cm
 %         material(3).Type = 3;                       % 1: Target, 2: Background, 3: Substrate
      
+    % find script home directory
+        mfilepath = strsplit(mfilename('fullpath'), '\');
+        mfilepath = fullfile(mfilepath{1:end-1});
+        addpath(genpath(mfilepath));
 
     % scattering factor database folder
-        scatfact_root_folder = fullfile(fileparts(mfilename), 'include', 'scatfacts');     % this should point to the folder holding tabulated elemental scattering factor data
+        scatfact_root_folder = fullfile(mfilepath, 'include', 'scatfacts');     % this should point to the folder holding tabulated elemental scattering factor data
        
     % beamline constants
-        photon_flux_filepath = fullfile(fileparts(mfilename), 'include', 'dummy_beamline_flux.csv');      % this should point to a file with the energy-dependent flux
+        photon_flux_filepath = fullfile(mfilepath, 'include', 'dummy_beamline_flux.csv');      % this should point to a file with the energy-dependent flux
         sampling_time = 30;     % measurement dwell time, in seconds
    
     % physical constants
@@ -205,14 +209,16 @@ function ptycontrast(material_names, thicknesses, types)
     xlabel('Photon Energy (eV)');   
     ylabel('Phase Shift (rad)');
     
-    prettyplot();
+%     prettyplot();
 end
 
 
 function [material_data] = get_material_data(material_names)
-    material_db_path = fullfile('include', 'ptychography_material_database.json');       %filepath to our local ptychography material database
+    mfilepath = strsplit(mfilename('fullpath'), '\');
+    mfilepath = fullfile(mfilepath{1:end-1});
+    material_db_path = fullfile(mfilepath, 'include', 'ptychography_material_database.json');       %filepath to our local ptychography material database
 %     addpath(fullfile(mfilename('fullpath'), 'include'));
-    disp(material_db_path);
+%     disp(material_db_path);
     %open the file, read the single line (json string) and decode to
     %struct, close file
     
