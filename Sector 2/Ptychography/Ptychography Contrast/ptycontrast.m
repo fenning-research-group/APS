@@ -9,10 +9,10 @@
 %   'thicknesses':  list of material thicknesses, in nm
 %   'energy':   two element vector with energy range, in eV ([3000, 20000])
 
-function ptycontrast(material_names, thicknesses, types)
+function ptycontrast(material_names, thicknesses, energy_range)
     %% user inputs
     % define energy range under consideration
-        energy_range = [3000 20000];                 % energy range to calculate across, in eV. scattering factor data is tabulated from 1000-24900 eV
+        % energy_range = [3000 20000];                 % energy range to calculate across, in eV. scattering factor data is tabulated from 1000-24900 eV
         num_energies_to_simulate = 1000;             % number of points to divide energy range into for simulation. Tabulated values will be interpolated onto the resulting mesh
         
     % define materials
@@ -70,7 +70,6 @@ function ptycontrast(material_names, thicknesses, types)
     %fill in simulation specific data (thickness)
     for idx = 1:numel(material)
         material(idx).Thickness = thicknesses(idx)*1e-7;     %later math all uses cm, input is in nm, correction factor here
-        material(idx).Type = types(idx);                    
     end
     
     % generate vector of sampling energies/wavelengths
@@ -82,23 +81,11 @@ function ptycontrast(material_names, thicknesses, types)
     % check all materials, generate list of all elements in the system and
     % organize by role in the system (target, background, or substrate).
     
-    target_idx = [];
-    background_idx = [];
-    substrate_idx = [];
     element_list = {};
     
     for mat_idx = 1:numel(material)
         for elem_idx = 1:numel(material(mat_idx).NumAtoms)
             element_list(numel(element_list) + 1) = material(mat_idx).Elements(elem_idx);
-        end
-        
-        switch material(mat_idx).Type
-            case 1
-                target_idx = [target_idx, mat_idx];
-            case 2
-                background_idx = [background_idx, mat_idx];
-            case 3
-                substrate_idx = [substrate_idx, mat_idx];
         end
     end 
     
@@ -170,15 +157,24 @@ function ptycontrast(material_names, thicknesses, types)
 %     
     % calculate contrast term  
     
-    % Formula 4 %
+    hfig = figure;
+    hold on;
 
-    total_phase_shift = 2*pi*((material(target_idx(1)).delta*material(target_idx(1)).Thickness + material(background_idx(1)).delta*material(background_idx(1)).Thickness))./lambda;
-    
-    
-    % Formula 5 %
-    phase_shift_target = 2*pi*material(target_idx(1)).delta*material(target_idx(1)).Thickness./lambda;
-    phase_shift_background = 2*pi*material(background_idx(1)).delta*material(background_idx(1)).Thickness./lambda;
-    
+    % Formula 4 %
+    phase_shift = zeros(num_energies_to_simulate, numel(material));
+    for idx = 1:numel(material)
+        phase_shift(:,idx) =  2*pi*material(idx).delta*material(idx).Thickness./lambda;
+        plot(E_photon, phase_shift(:,idx));
+    end
+
+    total_phase_shift = sum(phase_shift,2);
+    plot(E_photon, total_phase_shift, 'k:');
+    title('Ptychography Phase Delay')
+    xlabel('Photon Energy (eV)');   
+    ylabel('Phase Shift (rad)');    
+    legend(horzcat(material_names, 'Total Shift'));    
+
+
     % calculate resolution (this is random junk right now)
     
 %     resolution = sqrt((25/8/pi) ./ (photon_flux*sampling_time) .* contrast .* attenuation);    
@@ -186,9 +182,9 @@ function ptycontrast(material_names, thicknesses, types)
     %% plot results
 %     figure, hold on;
     
-    titlestring{1} = 'Total Phase Shift Going Through:';
-    titlestring{2} = sprintf('Target: %.2f nm %s', material(target_idx(1)).Thickness*1e7, material(target_idx(1)).Name);
-    titlestring{3} = sprintf('Background: %.2f nm %s', material(background_idx(1)).Thickness*1e7, material(background_idx(1)).Name);
+    % titlestring{1} = 'Total Phase Shift Going Through:';
+    % titlestring{2} = sprintf('Target: %.2f nm %s', material(target_idx(1)).Thickness*1e7, material(target_idx(1)).Name);
+    % titlestring{3} = sprintf('Background: %.2f nm %s', material(background_idx(1)).Thickness*1e7, material(background_idx(1)).Name);
 %     
 %     plot(E_photon, total_phase_shift); 
 %     title(titlestring);
@@ -196,18 +192,17 @@ function ptycontrast(material_names, thicknesses, types)
 %     ylabel('Phase Shift (rad)');
 %        
     
-    figure, hold on;
+    % figure, hold on;
     
-    titlestring{1} = 'Possible Phase Shifts in Given System:';
+    % titlestring{1} = 'Possible Phase Shifts in Given System:';
     
-    plot(E_photon, phase_shift_target, 'r');
-    plot(E_photon, phase_shift_background, 'b');
-    plot(E_photon, total_phase_shift, 'k');
+    % plot(E_photon, phase_shift_target, 'r');
+    % plot(E_photon, phase_shift_background, 'b');
+    % plot(E_photon, total_phase_shift, 'k');
     
-    legend({material(target_idx(1)).Name, material(background_idx(1)).Name, [material(target_idx(1)).Name ' + ' material(background_idx(1)).Name] , 'Contrast'}, 'location', 'best');
-    title(titlestring);
-    xlabel('Photon Energy (eV)');   
-    ylabel('Phase Shift (rad)');
+    % legend({material(target_idx(1)).Name, material(background_idx(1)).Name, [material(target_idx(1)).Name ' + ' material(background_idx(1)).Name] , 'Contrast'}, 'location', 'best');
+    % title(titlestring);
+
     
 %     prettyplot();
 end
