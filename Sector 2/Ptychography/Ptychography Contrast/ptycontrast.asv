@@ -166,14 +166,26 @@ function ptycontrast(material_names, thicknesses, energy_range)
         phase_shift(:,idx) =  2*pi*material(idx).delta*material(idx).Thickness./lambda;
         plot(E_photon, phase_shift(:,idx));
     end
-
+    
     total_phase_shift = sum(phase_shift,2);
     plot(E_photon, total_phase_shift, 'k:');
     title('Ptychography Phase Delay')
     xlabel('Photon Energy (eV)');   
     ylabel('Phase Shift (rad)');    
     legend(horzcat(material_names, 'Total Shift'));    
-
+    
+    hcfig = figure;
+    hold on;
+    him = imagesc(E_photon/1000, 1:size(phase_shift,2), phase_shift');
+    xlim([min(E_photon) max(E_photon)]/1000);
+    hax = him.Parent;
+    hax.YTick = 1:size(phase_shift,2);
+    hax.YTickLabel = material_names;
+    colormap(cbrewer('div', 'Spectral', 256));
+    hcb = colorbar;
+    title(hcb, 'Phase Shift');
+    xlabel('Photon Energy (keV)');
+    
 
     % calculate resolution (this is random junk right now)
     
@@ -305,11 +317,11 @@ function add_to_local_db(material_name)
             add_elems = 0;
             break;
         else
-            db_newentry.Elements{elem_idx} = data;
+            db_newentry.Elements(elem_idx) = data;
             db_newentry.NumAtoms(elem_idx) = input(['# of ' data ' atoms per unit: ']);
         end
     end
-    db.newentry.Density = input('Material Density (g/cm^3): ');
+    db_newentry.Density = input('Material Density (g/cm^3): ');
     
     db = [db, db_newentry];    
     db_writestring = jsonencode(db);

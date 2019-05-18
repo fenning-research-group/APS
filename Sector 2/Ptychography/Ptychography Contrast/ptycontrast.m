@@ -13,7 +13,7 @@ function ptycontrast(material_names, thicknesses, energy_range)
     %% user inputs
     % define energy range under consideration
         % energy_range = [3000 20000];                 % energy range to calculate across, in eV. scattering factor data is tabulated from 1000-24900 eV
-        num_energies_to_simulate = 1000;             % number of points to divide energy range into for simulation. Tabulated values will be interpolated onto the resulting mesh
+        num_energies_to_simulate = 5000;             % number of points to divide energy range into for simulation. Tabulated values will be interpolated onto the resulting mesh
         
     % define materials
         % material 1
@@ -166,14 +166,27 @@ function ptycontrast(material_names, thicknesses, energy_range)
         phase_shift(:,idx) =  2*pi*material(idx).delta*material(idx).Thickness./lambda;
         plot(E_photon, phase_shift(:,idx));
     end
-
+    
     total_phase_shift = sum(phase_shift,2);
     plot(E_photon, total_phase_shift, 'k:');
     title('Ptychography Phase Delay')
     xlabel('Photon Energy (eV)');   
     ylabel('Phase Shift (rad)');    
     legend(horzcat(material_names, 'Total Shift'));    
-
+    
+    hcfig = figure;
+    hold on;
+    him = imagesc(E_photon/1000, 1:size(phase_shift,2), phase_shift');
+    xlim([min(E_photon) max(E_photon)]/1000);
+    ylim([0.5, size(phase_shift, 2)+0.5]);  %just to align colorbars with plot edges
+    hax = him.Parent;
+    hax.YTick = 1:size(phase_shift,2);
+    hax.YTickLabel = material_names;
+    colormap(cbrewer('div', 'Spectral', 256));
+    hcb = colorbar;
+    title(hcb, 'Phase Shift');
+    xlabel('Photon Energy (keV)');
+    
 
     % calculate resolution (this is random junk right now)
     
@@ -276,11 +289,11 @@ function [material_data] = get_material_data(material_names)
                 addnewquery = input(['\nAdd data for ' material_names{idx} '? (y/n): '], 's');
                 if strcmp(addnewquery, 'y')
                     add_to_local_db(material_names{idx});
+                else
+                    error(['Missing data for ' material_names{idx}]);
                 end
-%                 missing_str = strcat(missing_str, material_names{idx}, ', ');
             end
         end
-        error(missing_str(1:end-1));
     end
     
     fprintf('\n');
@@ -309,9 +322,9 @@ function add_to_local_db(material_name)
             db_newentry.NumAtoms(elem_idx) = input(['# of ' data ' atoms per unit: ']);
         end
     end
-    db.newentry.Density = input('Material Density (g/cm^3): ');
+    db_newentry.Density = input('Material Density (g/cm^3): ');
     
-    db = [db, db_newentry];    
+    db = [db; db_newentry];    
     db_writestring = jsonencode(db);
     
     db_fid = fopen(material_db_path, 'w');                      
