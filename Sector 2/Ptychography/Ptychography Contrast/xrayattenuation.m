@@ -9,36 +9,12 @@
 %   'thicknesses':  list of material thicknesses, in nm
 %   'energy':   two element vector with energy range, in eV ([3000, 20000])
 
-function ptycontrast(material_names, thicknesses, energy_range)
+function xrayattenuation(material_names, material_thicknesses, energy_range)
     %% user inputs
     % define energy range under consideration
         % energy_range = [3000 20000];                 % energy range to calculate across, in eV. scattering factor data is tabulated from 1000-24900 eV
-        num_energies_to_simulate = 5000;             % number of points to divide energy range into for simulation. Tabulated values will be interpolated onto the resulting mesh
-        
-    % define materials
-        % material 1
-%         material(1).Name = 'PbF2';               % material name, just used for data presentation
-%         material(1).Elements = {'Pb', 'F'};  % list of elements present in material
-%         material(1).NumAtoms = [1,2];           % number of each element present in material
-%         material(1).Density = 8.44;                 % density in g/cm3
-%         material(1).Thickness = 400e-7;             % layer thickness in cm
-%         material(1).Type = 2;                       % 1: Target, 2: Background, 3: Substrate
-%         
-%         %material 2
-%         material(2).Name = 'RbPbF3';                 % material name, just used for data presentation
-%         material(2).Elements = {'Rb', 'Pb', 'F'};        % list of elements present in material
-%         material(2).NumAtoms = [1, 1, 3];              % number of each element present in material
-%         material(2).Density = 6.16;                 % density in g/cm3
-%         material(2).Thickness = 100e-7;               % layer thickness in cm
-%         material(2).Type = 1;                       % 1: Target, 2: Background, 3: Substrate
-%         
-%         %substrate
-%         material(3).Name = 'Polyimide';                 % material name, just used for data presentation
-%         material(3).Elements = {'C', 'H', 'N', 'O'};        % list of elements present in material
-%         material(3).NumAtoms = [22, 10, 2, 5];              % number of each element present in material
-%         material(3).Density = 1.43;                 % density in g/cm3
-%         material(3).Thickness = 70e-4;               % layer thickness in cm
-%         material(3).Type = 3;                       % 1: Target, 2: Background, 3: Substrate
+        num_energies_to_simulate = 2000;             % number of points to divide energy range into for simulation. Tabulated values will be interpolated onto the resulting mesh
+  
      
     % find script home directory
         mfilepath = strsplit(mfilename('fullpath'), '\');
@@ -67,10 +43,7 @@ function ptycontrast(material_names, thicknesses, energy_range)
     %% housekeeping   
     
     material = get_material_data(material_names);       %get material data (density, atomic ratios) from local or Materials Project
-    %fill in simulation specific data (thickness)
-    for idx = 1:numel(material)
-        material(idx).Thickness = thicknesses(idx)*1e-7;     %later math all uses cm, input is in nm, correction factor here
-    end
+
     
     % generate vector of sampling energies/wavelengths
     
@@ -84,6 +57,7 @@ function ptycontrast(material_names, thicknesses, energy_range)
     element_list = {};
     
     for mat_idx = 1:numel(material)
+        material(mat_idx).thickness = material_thicknesses(mat_idx)*1e-7;       %load the material thickness into data, correct nm -> cm
         for elem_idx = 1:numel(material(mat_idx).NumAtoms)
             element_list(numel(element_list) + 1) = material(mat_idx).Elements(elem_idx);
         end
@@ -156,38 +130,49 @@ function ptycontrast(material_names, thicknesses, energy_range)
 %     attenuation = exp(-attenuation);
 %     
     % calculate contrast term  
-    
-    hfig = figure;
-    hold on;
 
-    % Formula 4 %
-    phase_shift = zeros(num_energies_to_simulate, numel(material));
-    for idx = 1:numel(material)
-        phase_shift(:,idx) =  2*pi*material(idx).delta*material(idx).Thickness./lambda;
-        plot(E_photon/1000, phase_shift(:,idx));
+    
+    transmission = ones(num_energies_to_simulate,1);
+    
+    
+    for eidx = 1:num_energies_to_simulate
+        % Formula 4 %
+        for mat_idx = 1:numel(material)
+            transmission(eidx) = transmission(eidx) * exp(-material(mat_idx).mu(eidx)*material(mat_idx).thickness);
+        end
     end
     
-%     total_phase_shift = sum(phase_shift,2);
-%     plot(E_photon, total_phase_shift, 'k:');
-    title('Ptychography Phase Delay')
-    xlabel('Photon Energy (keV)');   
-    ylabel('Phase Shift (rad)');    
-    xlim([min(E_photon) max(E_photon)]*1e-3);
-%     legend(horzcat(material_names, 'Total Shift'));    
-    legend(horzcat(material_names));
-    
-    hcfig = figure;
+        
+    hfig = figure;
     hold on;
-    him = imagesc(E_photon/1000, 1:size(phase_shift,2), phase_shift');
-    xlim([min(E_photon) max(E_photon)]/1000);
-    ylim([0.5, size(phase_shift, 2)+0.5]);  %just to align colorbars with plot edges
-    hax = him.Parent;
-    hax.YTick = 1:size(phase_shift,2);
-    hax.YTickLabel = material_names;
-    colormap(cbrewer('div', 'Spectral', 256));
-    hcb = colorbar;
-    title(hcb, 'Phase Shift');
+    plot(E_photon/1000, transmission);
+    title('X-Ray Transmission');
     xlabel('Photon Energy (keV)');
+    ylabel('Transmission');
+    ylim([0 1]);
+    xlim([min(E_photon) max(E_photon)]*1e-3);
+    
+    matlist_str = {};
+    for mat_idx = 1:numel(material)
+        matlist_str{mat_idx} = [num2str(material_thicknesses(mat_idx)) ' nm ' material_names{mat_idx}];
+    end
+    
+    prettyplot;
+    cornertext(matlist_str);
+    
+%     
+%     hcfig = figure;
+%     hold on;
+%     him = imagesc(E_photon/1000, 1:size(phase_shift,2), phase_shift');
+%     xlim([min(E_photon) max(E_photon)]/1000);
+%     ylim([0.5, size(phase_shift, 2)+0.5]);  %just to align colorbars with plot edges
+%     hax = him.Parent;
+%     hax.YTick = 1:size(phase_shift,2);
+%     hax.YTickLabel = material_names;
+%     colormap(cbrewer('div', 'Spectral', 256));
+%     hcb = colorbar;
+%     title(hcb, 'Phase Shift');
+%     xlabel('Photon Energy (keV)');
     
 
     % calculate resolution (this is random junk right now)

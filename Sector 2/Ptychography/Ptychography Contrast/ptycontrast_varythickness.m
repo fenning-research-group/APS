@@ -9,12 +9,12 @@
 %   'thicknesses':  list of material thicknesses, in nm
 %   'energy':   two element vector with energy range, in eV ([3000, 20000])
 
-function ptycontrast(material_names, thicknesses, energy_range)
+function ptycontrast_varythickness(material_names, sample_thickness, energy_range)
     %% user inputs
     % define energy range under consideration
         % energy_range = [3000 20000];                 % energy range to calculate across, in eV. scattering factor data is tabulated from 1000-24900 eV
-        num_energies_to_simulate = 1000;             % number of points to divide energy range into for simulation. Tabulated values will be interpolated onto the resulting mesh
-        
+        num_energies_to_simulate = 2000;             % number of points to divide energy range into for simulation. Tabulated values will be interpolated onto the resulting mesh
+        num_thicknesses_to_simulate = 1000;
     % define materials
         % material 1
 %         material(1).Name = 'PbF2';               % material name, just used for data presentation
@@ -67,10 +67,7 @@ function ptycontrast(material_names, thicknesses, energy_range)
     %% housekeeping   
     
     material = get_material_data(material_names);       %get material data (density, atomic ratios) from local or Materials Project
-    %fill in simulation specific data (thickness)
-    for idx = 1:numel(material)
-        material(idx).Thickness = thicknesses(idx)*1e-7;     %later math all uses cm, input is in nm, correction factor here
-    end
+
     
     % generate vector of sampling energies/wavelengths
     
@@ -159,21 +156,66 @@ function ptycontrast(material_names, thicknesses, energy_range)
     
     hfig = figure;
     hold on;
+    
+    sample_thickness = sample_thickness*1e-7;        %convert nm input to cm for code
+    thicknesses = linspace(0,sample_thickness, num_thicknesses_to_simulate);
+    phase_shift = zeros(num_energies_to_simulate, 2, num_thicknesses_to_simulate);
+    phase_contrast = zeros(num_energies_to_simulate, num_thicknesses_to_simulate);
 
-    % Formula 4 %
-    phase_shift = zeros(num_energies_to_simulate, numel(material));
-    for idx = 1:numel(material)
-        phase_shift(:,idx) =  2*pi*material(idx).delta*material(idx).Thickness./lambda;
-        plot(E_photon, phase_shift(:,idx));
+    
+    
+    for tidx = 1:num_thicknesses_to_simulate
+        %fill in simulation specific data (thickness)
+%         for idx = 1:numel(material)
+%             material(idx).Thickness = thicknesses(idx)*1e-7;     %later math all uses cm, input is in nm, correction factor here
+%         end
+        material(1).Thickness = sample_thickness-thicknesses(tidx);        
+        material(2).Thickness = thicknesses(tidx);
+        % Formula 4 %
+        for idx = 1:numel(material)
+            phase_shift(:,idx, tidx) =  2*pi*material(idx).delta*material(idx).Thickness./lambda;
+%             plot(E_photon, phase_shift(:,idx));
+        end
+        phase_contrast(:,tidx) = phase_shift(:,1,tidx) + phase_shift(:,2,tidx) - phase_shift(:,1,1);
     end
-
-    total_phase_shift = sum(phase_shift,2);
-    plot(E_photon, total_phase_shift, 'k:');
-    title('Ptychography Phase Delay')
-    xlabel('Photon Energy (eV)');   
-    ylabel('Phase Shift (rad)');    
-    legend(horzcat(material_names, 'Total Shift'));    
-
+    
+    [x,y] = meshgrid(linspace(0,1,num_thicknesses_to_simulate), E_photon/1000);
+    
+    surf(x, y, phase_contrast, 'EdgeColor', 'none');
+    grid on;
+%     colormap(cbrewer('div', 'Spectral', 256));
+    colormap(cbrewer('div', 'RdBu', 256));
+    view(2);
+    title({[material_names{2} ' in ' material_names{1}], ['Sample Thickness: ' num2str(sample_thickness*1e7) ' nm']});
+    xlabel('Material Ratio');   
+    ylabel('Photon Energy (keV)');
+    ylim([min(E_photon) max(E_photon)]*1e-3);
+    zlabel('Phase Shift (rad)');
+    hcb = colorbar;
+    title(hcb, 'Phase Shift (rad)');
+    prettyplot('wide');
+    
+    hax = gca;
+    hax.XTickLabel{1} = material_names{1};
+    hax.XTickLabel{end} = material_names{2};
+    hax.Color = [0.7 0.7 0.7];
+    caxis_lim = max(abs(caxis));
+    caxis([-caxis_lim caxis_lim]);
+    
+%   
+%     hcfig = figure;
+%     hold on;
+%     him = imagesc(E_photon/1000, 1:size(phase_shift,2), phase_shift');
+%     xlim([min(E_photon) max(E_photon)]/1000);
+%     ylim([0.5, size(phase_shift, 2)+0.5]);  %just to align colorbars with plot edges
+%     hax = him.Parent;
+%     hax.YTick = 1:size(phase_shift,2);
+%     hax.YTickLabel = material_names;
+%     colormap(cbrewer('div', 'Spectral', 256));
+%     hcb = colorbar;
+%     title(hcb, 'Phase Shift');
+%     xlabel('Photon Energy (keV)');
+    
 
     % calculate resolution (this is random junk right now)
     
@@ -276,11 +318,11 @@ function [material_data] = get_material_data(material_names)
                 addnewquery = input(['\nAdd data for ' material_names{idx} '? (y/n): '], 's');
                 if strcmp(addnewquery, 'y')
                     add_to_local_db(material_names{idx});
+                else
+                    error(['Missing data for ' material_names{idx}]);
                 end
-%                 missing_str = strcat(missing_str, material_names{idx}, ', ');
             end
         end
-        error(missing_str(1:end-1));
     end
     
     fprintf('\n');
@@ -309,9 +351,9 @@ function add_to_local_db(material_name)
             db_newentry.NumAtoms(elem_idx) = input(['# of ' data ' atoms per unit: ']);
         end
     end
-    db.newentry.Density = input('Material Density (g/cm^3): ');
+    db_newentry.Density = input('Material Density (g/cm^3): ');
     
-    db = [db, db_newentry];    
+    db = [db; db_newentry];    
     db_writestring = jsonencode(db);
     
     db_fid = fopen(material_db_path, 'w');                      
