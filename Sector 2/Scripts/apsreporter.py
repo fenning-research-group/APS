@@ -287,6 +287,7 @@ class build:
 					xrfdat = {}
 					for channel, xrf in zip(all_channels, xrf_data):
 						if channel in channels:
+							xrf=xrf[np.isnan(xrf)!=1]
 							xrfdat[channel] = xrf
 
 					#build dict with x, y, and xrf data for all scans
