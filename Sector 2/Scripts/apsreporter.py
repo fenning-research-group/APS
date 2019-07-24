@@ -359,6 +359,9 @@ class build:
 				xvals = dat['MAPS']['x_axis'][:]
 				yvals = dat['MAPS']['y_axis'][:]    
 				xrf = dat['MAPS']['XRF_roi'][:].tolist()
+				energy = dat['MAPS']['energy'][:]
+				int_spec = dat['MAPS']['int_spec'][:]
+				summed_xrf = np.column_stack((energy, int_spec))
 
 				scaler_names = dat['MAPS']['scaler_names'][:].astype('U13').tolist()
 				dsic_index = scaler_names.index('ds_ic') #[index for index in scaler_names if index == 'ds_ic']
@@ -369,7 +372,7 @@ class build:
 				channels.append('XBIC')
 				xrf.append(DSIC)
 
-			return xvals, yvals, xrf, channels
+			return xvals, yvals, xrf, channels, summed_xrf
 
 		# f = os.path.join(data_filepath, data_files[5])
 		# with h5py.File(f, 'r') as dat:
