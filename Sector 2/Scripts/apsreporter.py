@@ -256,7 +256,9 @@ class scanlist:
 
 				f = os.path.join(self.datafolder, scans[first_scan])	#open first scan h5 file to check which channels are available
 				with h5py.File(f, 'r') as data:
-					all_channels = data['MAPS']['channel_names'][:].astype('U13')
+					all_channels = data['MAPS']['channel_names'][:].astype('U13').tolist()
+
+				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
 				self._channels = pick_channels(all_channels)
 
 		def description(self, scan, description):
@@ -330,6 +332,8 @@ class comparison:
 				f = os.path.join(self.datafolder, scans[first_scan])	#open first scan h5 file to check which channels are available
 				with h5py.File(f, 'r') as data:
 					all_channels = data['MAPS']['channel_names'][:].astype('U13')
+
+				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
 				self._channels = pick_channels(all_channels)
 
 		# def description(self, scan, description):
@@ -339,13 +343,13 @@ class comparison:
 		# 		print('Scan %d not in scan list.'.format(scan))
 class build:
 
-	def __init__(self, tableofcontents, outputfolder, title):
+	def __init__(self, tableofcontents, outputfolder, title, boundaries = False):
 		with open(tableofcontents, 'r') as f:
 			self.tableofcontents = json.load(f)
 		self.outputfolder = outputfolder
 		f = os.path.join(outputfolder, title)
 		self.doc = SimpleDocTemplate(f,
-			showBoundary = 0)
+			showBoundary = boundaries)
 		self.Story = []
 		self.title = title
 
@@ -354,9 +358,16 @@ class build:
 			with h5py.File(f, 'r') as dat:
 				xvals = dat['MAPS']['x_axis'][:]
 				yvals = dat['MAPS']['y_axis'][:]    
-				xrf = dat['MAPS']['XRF_roi'][:]
+				xrf = dat['MAPS']['XRF_roi'][:].tolist()
 
-				channels = dat['MAPS']['channel_names'][:].astype('U13')
+				scaler_names = dat['MAPS']['scaler_names'][:].astype('U13').tolist()
+				dsic_index = scaler_names.index('ds_ic') #[index for index in scaler_names if index == 'ds_ic']
+				DSIC = dat['MAPS']['scalers'][dsic_index][:]
+
+
+				channels = dat['MAPS']['channel_names'][:].astype('U13').tolist()
+				channels.append('XBIC')
+				xrf.append(DSIC)
 
 			return xvals, yvals, xrf, channels
 
@@ -566,6 +577,34 @@ class build:
 		def generate_image_matrix(image_paths, max_num_cols, max_width, max_height):
 			margin = 1.01
 
+			# table_dimensions = {
+			# 	1: (1,1),
+			# 	2: (2,2),
+			# 	3: (2,2),
+			# 	4: (2,2),
+			# 	5: (3,2),
+			# 	6: (3,2),
+			# 	7: (3,3),
+			# 	8: (3,3),
+			# 	9: (3,3),
+			# 	10:(4,3),
+			# 	11:(4,3),
+			# 	12:(4,3),
+			# 	13:(4,4),
+			# 	15:(4,4),
+			# 	16:(4,4)
+			# 	}
+
+			# num_cols, num_rows = table_dimensions[len(image_paths)]
+
+
+			# if max_width/num_cols < max_height/num_rows:
+			#     limiting_dimension = 'width'
+			#     limiting_size = (max_width/num_cols) / margin
+			# else:
+			#     limiting_dimension = 'height'
+			#     limiting_size = (max_height/num_rows) / margin     
+
 			x = np.sqrt(len(image_paths))
 
 			if x == np.floor(x):
@@ -579,13 +618,7 @@ class build:
 			if max_num_cols == 1:
 				num_cols = 1
 				num_rows = len(image_paths)
-
-			# if max_width/num_cols < max_height/num_rows:
-			#     limiting_dimension = 'width'
-			#     limiting_size = (max_width/num_cols) / margin
-			# else:
-			#     limiting_dimension = 'height'
-			#     limiting_size = (max_height/num_rows) / margin       
+  
 
 			limiting_size = max_width / num_cols
 
@@ -606,8 +639,9 @@ class build:
 						im = ScaledImage(image_paths[image_index], dimension = limiting_dimension, size = limiting_size)
 						row_matrix.append(im)
 						image_index += 1
+						if image_index == len(image_paths):
+							filling = False
 					else:
-						filling = False
 						row_matrix.append('')
 				img_matrix.append(row_matrix)
 
@@ -642,10 +676,14 @@ class build:
 			# Story.append(PageBreak())
 
 			### xrf maps section
+			# frame = doc.getFrame('xrfframe')
+			# width = frame._aW
+			# height = frame.aH
+
 			imtable = generate_image_matrix(scan_image_filepaths,
 				max_num_cols = 4,
-				max_width = doc.width* 0.95,
-				max_height = doc.height * 0.6)
+				max_width = doc.width + doc.leftMargin,
+				max_height = doc.height * 0.62)
 			Story.append(imtable)
 			# Story.append(PageBreak())
 
@@ -720,9 +758,9 @@ class build:
 				height = text_height,
 				id = 'overviewmapframe')
 			xrfframe = Frame(
-				x1 = doc.leftMargin,
-				y1 = doc.bottomMargin, 
-				width = doc.width,
+				x1 = doc.leftMargin * 0.5,
+				y1 = doc.bottomMargin * 0.8, 
+				width = doc.width + doc.leftMargin,
 				height = doc.height - text_height,
 				id = 'xrfframe')
 
