@@ -91,7 +91,13 @@ class tableofcontents:
 				if description == None:
 					description = ''
 				printwithtabs('Scan {0:d}: {1:s}'.format(scan, description), tabs + 1)
-				
+		
+		def showcomparison(comparison, tabs):
+			printwithtabs('{0:s}'.format(comparison.description) ,tabs + 1)
+			for scan, description in comparison._scans.items():
+				if description == None:
+					description = ''
+				printwithtabs('Scan {0:d}: {1:s}'.format(scan, description), tabs + 2)
 
 		def showsection(sections, tabs):
 			for sec, cont in sections.items():
@@ -103,6 +109,9 @@ class tableofcontents:
 				if isinstance(cont, scanlist):
 					printwithtabs('Scans: {0:s}'.format(sec), tabs + 1)
 					showscanlist(cont, tabs + 1)
+				if isinstance(cont, comparison):
+					printwithtabs('Comparison: {0:s}'.format(sec), tabs + 1)
+					showcomparison(cont, tabs + 1)
 
 
 		print('Title: {0:s}'.format(self.title))
@@ -126,6 +135,25 @@ class tableofcontents:
 				}
 			return jscan
 
+		def parsecomparison(comparison):
+			jcomparison = {
+				'title': comparison.title,
+				'description': comparison.description,
+				'channels': comparison._channels
+			}
+			jscan = {}
+			for scan, description in comparison._scans.items():
+				if description == None:
+					description = ''
+				jscan[scan] = {
+					'description': description,
+					'energy': self._energy[scan],
+					'dwell': self._dwell[scan]
+				}
+			jcomparison['scans'] = jscan
+
+			return jcomparison
+
 		def parsesection(sections):
 			jsection = {}
 			for sec, cont in sections.items():
@@ -138,6 +166,8 @@ class tableofcontents:
 				# elif type(content) is 'scanlist':
 				if isinstance(cont, scanlist):
 					jsection['scans'] = parsescanlist(cont)
+				if isinstance(cont, comparison):
+					jsection['comparison'] = parsecomparison(cont)
 
 			return jsection
 
@@ -173,7 +203,6 @@ class section:
 		# 	self._contents[name] = content
 		# else:
 		# 	self._contents[name] = content
-
 class scanlist:
 
 		def __init__(self, datafolder, scans):
@@ -243,7 +272,71 @@ class scanlist:
 		# def descriptions(self, scan, description):
 		# 	scan_index = self.scans.index(scan)
 		# 	self.descriptions[scan_index] = description
+class comparison:
 
+		def __init__(self, datafolder, scans, title = None, description = None):
+			self.datafolder = datafolder
+			self.title = title or None
+			self.description = description or None
+			if type(scans) is dict:
+				self._scans = scans
+			else:
+				self._scans = {scan:None for scan in scans}
+				# self._comparisons = {comparison:filler for comparison in comparisons}
+			# self.descriptions = [None] * len(_scans)
+
+
+		@property
+		def scans(self):
+			return self._scans
+		@scans.setter
+		def scans(self, scan_nums):
+			self._scans = scan_nums
+
+		@property
+		def channels(self):
+			return self._channels
+		# @channels.setter
+		def setchannels(self):
+			print(self.title)
+			if len(self._scans) == 0:
+				raise ValueError('No scans assigned to this comparison list')
+			else:
+				def pick_channels(channels):
+					# tkinter gui to select channels
+					master = Tk()				
+					max_rows = 5
+					var = []
+					for i, channel in enumerate(channels):
+						colnum = int(np.max([0,np.floor((i-1)/max_rows)]))
+						rownum = int(np.mod(i, max_rows))
+						var.append(IntVar())
+						Checkbutton(master, text=channel, variable=var[i]).grid(row=rownum, column = colnum, sticky=W)
+					Button(master, text = 'Select Channels', command = master.quit()).grid(row = 6, sticky = W)
+					mainloop()
+
+					selected_channels = [channels[x] for x in range(len(channels)) if var[x].get() == 1]
+
+					return selected_channels
+
+				scanfids = os.listdir(self.datafolder)
+				scanfids = [x for x in scanfids if '2idd_' in x]
+				scan_nums = [int(x[5:9]) for x in scanfids]		#5:9 are the positions for scan number in filename string. Can improve this later, or modify for different file format in the future
+
+				scans = {x:y for x,y in zip(scan_nums,scanfids)}
+
+				first_scan = list(self._scans.keys())[0]
+
+				f = os.path.join(self.datafolder, scans[first_scan])	#open first scan h5 file to check which channels are available
+				with h5py.File(f, 'r') as data:
+					all_channels = data['MAPS']['channel_names'][:].astype('U13')
+				self._channels = pick_channels(all_channels)
+
+		# def description(self, scan, description):
+		# 	if scan in self._scans:
+		# 		self._scans[scan] = description
+		# 	else:
+		# 		print('Scan %d not in scan list.'.format(scan))
 class build:
 
 	def __init__(self, tableofcontents, outputfolder, title):
@@ -310,56 +403,58 @@ class build:
 		return new_cmap
 
 	def plotxrf(self, scan, channel, x, y, xrf):
-		xrf = np.array(xrf)
-
-		color = cm.get_cmap('viridis')
-		color_trimmed = self.truncate_colormap(cmap = color, minval = 0.0, maxval = 0.99)	#exclude highest brightness pixels to improve contrast with overlay text
-
-		fig = plt.figure(figsize = (2, 2))
-		ax = plt.gca()
-		im = ax.imshow(xrf, 
-			extent =[x[0], x[-1], y[0], y[-1]],
-			cmap = color_trimmed,
-			interpolation = 'none')
-
-		## text + scalebar objects
-		opacity = 1
-
-		scalebar = ScaleBar(1e-6,
-			color = [1, 1, 1, opacity],
-			box_color = [1, 1, 1],
-			box_alpha = 0,
-			location = 'lower right',
-			border_pad = 0.1)
-
-		ax.text(0.02, 0.98, str(scan) + ': ' + channel,
-			fontname = 'Verdana', 
-			fontsize = 12,
-			color = [1, 1, 1, opacity], 
-			transform = ax.transAxes,
-			horizontalalignment = 'left',
-			verticalalignment = 'top')
-
-		ax.text(0.98, 0.98, str(int(np.amax(xrf))) + '\n' + str(int(np.amin(xrf))),
-			fontname = 'Verdana', 
-			fontsize = 12,
-			color = [1, 1, 1, opacity], 
-			transform = ax.transAxes,
-			horizontalalignment = 'right',
-			verticalalignment = 'top')    
-
-		ax.add_artist(scalebar)
-		plt.axis('off')
-		plt.gca().set_position([0, 0, 1, 1])
-
 		savefolder = os.path.join(self.outputfolder, str(scan))
 		if not os.path.exists(savefolder):
 			os.mkdir(savefolder)
 
 		image_format = 'jpeg'
 		savepath = os.path.join(savefolder, channel + '.' + image_format)
-		plt.savefig(savepath, format=image_format, dpi=300)
-		plt.close() 
+
+		if not os.path.exists(savepath):
+			xrf = np.array(xrf)
+			xrf = xrf[:, :-2]	#remove last two lines, dead from 2idd flyscan
+
+			color = cm.get_cmap('viridis')
+			color_trimmed = self.truncate_colormap(cmap = color, minval = 0.0, maxval = 0.99)	#exclude highest brightness pixels to improve contrast with overlay text
+
+			fig = plt.figure(figsize = (2, 2))
+			ax = plt.gca()
+			im = ax.imshow(xrf, 
+				extent =[x[0], x[-3], y[0], y[-1]],
+				cmap = color_trimmed,
+				interpolation = 'none')
+
+			## text + scalebar objects
+			opacity = 1
+
+			scalebar = ScaleBar(1e-6,
+				color = [1, 1, 1, opacity],
+				box_color = [1, 1, 1],
+				box_alpha = 0,
+				location = 'lower right',
+				border_pad = 0.1)
+
+			ax.text(0.02, 0.98, str(scan) + ': ' + channel,
+				fontname = 'Verdana', 
+				fontsize = 12,
+				color = [1, 1, 1, opacity], 
+				transform = ax.transAxes,
+				horizontalalignment = 'left',
+				verticalalignment = 'top')
+
+			ax.text(0.98, 0.98, str(int(np.amax(xrf))) + '\n' + str(int(np.amin(xrf))),
+				fontname = 'Verdana', 
+				fontsize = 12,
+				color = [1, 1, 1, opacity], 
+				transform = ax.transAxes,
+				horizontalalignment = 'right',
+				verticalalignment = 'top')    
+
+			ax.add_artist(scalebar)
+			plt.axis('off')
+			plt.gca().set_position([0, 0, 1, 1])
+			plt.savefig(savepath, format=image_format, dpi=300)
+			plt.close() 
 
 		return savepath
 
@@ -481,6 +576,10 @@ class build:
 			num_cols = int(guess_num_cols)
 			num_rows = np.ceil(len(image_paths) / num_cols)
 
+			if max_num_cols == 1:
+				num_cols = 1
+				num_rows = len(image_paths)
+
 			# if max_width/num_cols < max_height/num_rows:
 			#     limiting_dimension = 'width'
 			#     limiting_size = (max_width/num_cols) / margin
@@ -565,6 +664,31 @@ class build:
 			# Story.append(PageBreak())
 			return(Story)
 
+		def build_comparison_page(doc, Story, title, subtitle, comparisondict):
+			margin = 0.99
+			num_columns = len(comparisondict)
+
+
+
+			Story.append(Paragraph(title, styles['Heading1']))
+			Story.append(Paragraph(subtitle, styles['Normal']))
+
+
+			#columns
+			print(comparisondict.items())
+			for _, vals in comparisondict.items():
+				Story.append(FrameBreak())
+				Story.append(Paragraph(vals['description'], styles['Normal']))
+				Story.append(FrameBreak())
+				imtable =  generate_image_matrix(vals['impaths'],
+					max_num_cols = 1,
+					max_width = doc.width / num_columns * margin,
+					max_height = doc.height * 0.4)
+				print(imtable)
+				Story.append(imtable)
+
+			return(Story)
+
 		def go(doc, Story, outputpath):
 			## title page template
 
@@ -605,9 +729,48 @@ class build:
 				height = doc.height - text_height,
 				id = 'xrfframe')
 
-			doc.addPageTemplates([PageTemplate(id='TitlePage',frames=[titleframe,subtitleframe], onPage = FirstPage),
-								 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,xrfframe], onPage = myLaterPages)]
-									)
+			## 2-scan comparison page template
+
+			def makecomparisontemplate(num_columns):
+				margin = 1-0.01
+				header_height = doc.height * 0.1 * margin
+				subheader_height = doc.height * 0.1 * margin
+				column_height = (doc.height - header_height - subheader_height) * margin
+				column_width = (doc.width/ (num_columns)) * margin
+
+				frames = []
+
+				frames.append(Frame(
+								x1 = doc.leftMargin,
+								y1 = PAGE_HEIGHT - doc.topMargin - header_height, 
+								width = doc.width,
+								height = header_height,
+								id = 'headerframe'))
+				for n in range(num_columns):
+					frames.append(Frame(
+									x1 = doc.leftMargin + n*column_width,
+									y1 = PAGE_HEIGHT - doc.topMargin - header_height - subheader_height, 
+									width = column_width,
+									height = subheader_height,
+									id = 'subheader_' + str(n+1)))
+
+					frames.append(Frame(
+									x1 = doc.leftMargin + n*column_width,
+									y1 = doc.bottomMargin, 
+									width = column_width,
+									height = doc.height - header_height - subheader_height,
+									id = 'headerframe_' + str(n+1)))
+				return frames
+
+
+			doc.addPageTemplates([
+								 PageTemplate(id='TitlePage',frames=[titleframe,subtitleframe], onPage = FirstPage),
+								 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,xrfframe], onPage = myLaterPages),
+								 PageTemplate(id='Comparison_2',frames=makecomparisontemplate(2), onPage = myLaterPages),
+								 PageTemplate(id='Comparison_3',frames=makecomparisontemplate(3), onPage = myLaterPages),
+								 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = myLaterPages)
+								 ]
+								)
 			doc.build(Story)
 
 		def report(self):
@@ -656,10 +819,48 @@ class build:
 
 				return story
 
+			def writecomparison(story, comparison):
+				for key, _ in comparison['scans'].items():
+					comparison['scans'][key]['channels'] = comparison['channels']
+
+				scandat = self.readscans(scanlist = comparison['scans']) #ghetto, maybe keep channels in upper level (assume constant for all scans in set, probably good assumption)			
+
+				print('---comparison----')
+				keys = [int(x) for x in list(scandat.keys())]
+				keys.sort()
+
+				channels = comparison['channels']
+				print(keys)
+				for key in keys:
+					print(key)
+					comparison['scans'][str(key)]['impaths'] = []
+
+					scan = key
+					vals = scandat[key]
+
+					for channel, data in vals['xrf'].items():
+
+						comparison['scans'][str(key)]['impaths'].append(self.plotxrf(
+										scan = scan,
+										channel = channel,
+										x = vals['x'],
+										y = vals['y'],
+										xrf = data
+									 )
+						)
+
+				story = build_comparison_page(
+					doc = self.doc,
+					Story = story,
+					title = comparison['title'],
+					subtitle = comparison['description'], 
+					comparisondict = comparison['scans'],
+					)
+
+				return story
 			def writesection(story, section, contents):
 				for key, content in contents.items():
 					if key == 'scans':
-
 						story = writescanlist(story, content)
 					elif key == 'description':
 						print('***TitlePage***')
@@ -673,9 +874,23 @@ class build:
 							)
 					elif key == 'content':
 						story = writesection(story, key, content)
+					elif key == 'comparison':
+						print("!!!Comparison!!!")
+						num_columns = len(content['scans'])
+						pagetemplate = 'Comparison_' + str(num_columns)	#only handles 2-4 columns
+
+						story.append(NextPageTemplate(pagetemplate))
+						story.append(PageBreak())
+
+						story = writecomparison(
+							story = self.Story,
+							comparison = content)
 					else:
 						pass
 				return story
+
+			if not os.path.exists(self.outputfolder):
+				os.mkdir(self.outputfolder)
 
 
 			self.Story = build_title_page(
