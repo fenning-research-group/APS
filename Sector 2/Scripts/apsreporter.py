@@ -345,7 +345,7 @@ class build:
 		self.outputfolder = outputfolder
 		f = os.path.join(outputfolder, title)
 		self.doc = SimpleDocTemplate(f,
-			showBoundary = 1)
+			showBoundary = 0)
 		self.Story = []
 		self.title = title
 
@@ -596,7 +596,6 @@ class build:
 				limiting_dimension = 'width'
 			limiting_size = limiting_size / margin
 
-
 			filling = True
 			img_matrix = []
 			image_index = 0
@@ -645,7 +644,7 @@ class build:
 			### xrf maps section
 			imtable = generate_image_matrix(scan_image_filepaths,
 				max_num_cols = 4,
-				max_width = doc.width,
+				max_width = doc.width* 0.95,
 				max_height = doc.height * 0.6)
 			Story.append(imtable)
 			# Story.append(PageBreak())
@@ -675,7 +674,6 @@ class build:
 
 
 			#columns
-			print(comparisondict.items())
 			for _, vals in comparisondict.items():
 				Story.append(FrameBreak())
 				Story.append(Paragraph(vals['description'], styles['Normal']))
@@ -684,7 +682,6 @@ class build:
 					max_num_cols = 1,
 					max_width = doc.width / num_columns * margin,
 					max_height = doc.height * 0.4)
-				print(imtable)
 				Story.append(imtable)
 
 			return(Story)
@@ -830,9 +827,7 @@ class build:
 				keys.sort()
 
 				channels = comparison['channels']
-				print(keys)
 				for key in keys:
-					print(key)
 					comparison['scans'][str(key)]['impaths'] = []
 
 					scan = key
