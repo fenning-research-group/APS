@@ -11,13 +11,13 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 
-pdfmetrics.registerFont(TTFont('Open Sans', 'Vera.ttf'))
 
 import os
 
 from PIL import Image as pilImage
 import numpy as np
 
+pdfmetrics.registerFont(TTFont('Open Sans', 'Vera.ttf'))
 
 PAGE_HEIGHT=defaultPageSize[1]; PAGE_WIDTH=defaultPageSize[0]
 styles = getSampleStyleSheet()

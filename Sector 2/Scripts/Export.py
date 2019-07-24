@@ -76,7 +76,7 @@ def plotxrf(scan_number, channel):
     y = xrf[xrf['Scan'] == int(scan_number)]['Y'].values
 
     color = cm.get_cmap('viridis')
-    color_trimmed = truncate_colormap(color, minval = 0.0, maxval = 0.99)
+    color_trimmed = self.truncate_colormap(color, minval = 0.0, maxval = 0.99)
 
     fig = plt.figure(figsize = (2, 2))
     ax = plt.gca()
