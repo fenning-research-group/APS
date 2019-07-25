@@ -11,6 +11,7 @@ from matplotlib.text import Text
 from matplotlib import cm
 from matplotlib_scalebar.scalebar import ScaleBar
 import matplotlib.colors as colors
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,AutoMinorLocator)
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, Frame, FrameBreak, PageTemplate, NextPageTemplate, KeepInFrame
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.rl_config import defaultPageSize
@@ -225,8 +226,10 @@ class scanlist:
 		def channels(self):
 			return self._channels
 		# @channels.setter
-		def setchannels(self):
-			if len(self._scans) == 0:
+		def setchannels(self, channels = None):
+			if channels:
+				self._channels = channels
+			elif len(self._scans) == 0:
 				raise ValueError('No scans assigned to this scan list: set first using .scans = [scan list here]')
 			else:
 				def pick_channels(channels):
@@ -301,7 +304,9 @@ class comparison:
 		# @channels.setter
 		def setchannels(self):
 			print(self.title)
-			if len(self._scans) == 0:
+			if channels:
+				self._channels = channels
+			elif len(self._scans) == 0:
 				raise ValueError('No scans assigned to this comparison list')
 			else:
 				def pick_channels(channels):
@@ -359,8 +364,8 @@ class build:
 				xvals = dat['MAPS']['x_axis'][:]
 				yvals = dat['MAPS']['y_axis'][:]    
 				xrf = dat['MAPS']['XRF_roi'][:].tolist()
-				energy = dat['MAPS']['energy'][:]
-				int_spec = dat['MAPS']['int_spec'][:]
+				energy = dat['MAPS']['energy']
+				int_spec = dat['MAPS']['int_spec']
 				summed_xrf = np.column_stack((energy, int_spec))
 
 				scaler_names = dat['MAPS']['scaler_names'][:].astype('U13').tolist()
@@ -388,7 +393,7 @@ class build:
 
 				if scan_num in scans:
 					f = os.path.join(self.tableofcontents['DataFolder'], filename)
-					x_data, y_data, xrf_data, all_channels = read_2idd_h5(f)
+					x_data, y_data, xrf_data, all_channels, summed_xrf = read_2idd_h5(f)
 
 					#get all xrf data, isolate the selected ones and save to dict
 					xrfdat = {}
@@ -403,7 +408,8 @@ class build:
 						'y': y_data,
 						'xrf': xrfdat,
 						'dwell': scanlist[scan_num]['dwell'],
-						'energy': scanlist[scan_num]['energy']
+						'energy': scanlist[scan_num]['energy'],
+						'integratedxrf': summed_xrf
 					}
 		#sort scandat
 
@@ -518,6 +524,58 @@ class build:
 		image_format = 'jpeg'
 		savepath = os.path.join(savefolder, 'overviewmap.' + image_format)
 		plt.savefig(savepath, format=image_format, dpi=300)
+		plt.close() 
+
+		return savepath
+
+	def plotintegratedxrf(self, scan, scandat):
+		xrf = scandat['integratedxrf']
+		low = 1	#low energy plotting cutoff, keV
+		high = float(scandat['energy']) + 0.5 #high energy plotting cutoff, keV
+
+		# generate and save plot
+		plt.figure(figsize = (8,2.5))
+		plt.plot(
+			xrf[(xrf[:,0]>=low) & (xrf[:,0]<=high),0],
+			xrf[(xrf[:,0]>=low) & (xrf[:,0]<=high),1],
+			color = 'k',
+			linewidth = 1)
+		ax = plt.gca()
+		plt.yscale('log')
+		plt.xlabel('Energy (keV)')
+		plt.ylabel('Counts')
+		ax.autoscale(enable = True, tight = True)
+		plt.gca().xaxis.set_major_locator(MultipleLocator(1))
+		plt.gca().xaxis.set_minor_locator(MultipleLocator(0.2))
+		plt.grid(True)		
+
+		# color_counter = 0
+		# for each_box in box_params:
+		# 	if each_box[4] == scan:
+		# 		opacity = 0.8	#highlight the selected scan
+		# 	else:
+		# 		opacity = 0.15
+
+		# 	color = cm.get_cmap('Set1')(color_counter)
+		# 	hr = Rectangle(each_box[1], each_box[2], each_box[3], 
+		# 					picker = True, 
+		# 					facecolor = color, 
+		# 					alpha = opacity, 
+		# 					edgecolor = [0, 0, 0],
+		# 					label = each_box[4])
+		# 	ax.add_patch(hr)
+		# 	color_counter = color_counter + 1
+		# ax.autoscale(enable = True)
+		# plt.tight_layout()
+		
+		savefolder = os.path.join(self.outputfolder, str(scan))
+		if not os.path.exists(savefolder):
+			os.mkdir(savefolder)
+
+		image_format = 'jpeg'
+		savepath = os.path.join(savefolder, 'integrated.' + image_format)
+		
+		plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
 		plt.close() 
 
 		return savepath
@@ -678,6 +736,9 @@ class build:
 			Story.append(FrameBreak())
 			# Story.append(PageBreak())
 
+			###integrated xrf spectrum
+
+			# imspectrum = ScaledImage(integratedspectrum_image_filepath, 'width', doc.width * 0.45)
 			### xrf maps section
 			# frame = doc.getFrame('xrfframe')
 			# width = frame._aW
@@ -812,6 +873,7 @@ class build:
 			doc.build(Story)
 
 		def report(self):
+
 			def writescanlist(story, scanlist):
 				scandat = self.readscans(scanlist = scanlist) #ghetto, maybe keep channels in upper level (assume constant for all scans in set, probably good assumption)			
 
@@ -835,6 +897,7 @@ class build:
 						)
 
 					overviewpath = self.plotoverview(scan, scandat)
+					integratedspectrumpath = self.plotintegratedxrf(scan, vals)
 
 					scan_params = {'x_range': int(max(vals['x']) - min(vals['x'])),
 								   'y_range': int(max(vals['y']) - min(vals['y'])),
@@ -894,6 +957,7 @@ class build:
 					)
 
 				return story
+
 			def writesection(story, section, contents):
 				for key, content in contents.items():
 					if key == 'scans':
