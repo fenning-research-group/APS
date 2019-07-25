@@ -538,7 +538,7 @@ class build:
 		high = float(scandat['energy']) + 0.5 #high energy plotting cutoff, keV
 
 		# generate and save plot
-		plt.figure(figsize = (8,2.5))
+		plt.figure(figsize = (8,3.2))
 		plt.plot(
 			xrf[(xrf[:,0]>=low) & (xrf[:,0]<=high),0],
 			xrf[(xrf[:,0]>=low) & (xrf[:,0]<=high),1],
@@ -578,6 +578,39 @@ class build:
 
 		image_format = 'jpeg'
 		savepath = os.path.join(savefolder, 'integrated.' + image_format)
+		
+		plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
+		plt.close() 
+
+		return savepath
+
+	def plotcorrmat(self, scan, scandat):
+		#build correlation matrix
+		channels = list(scandat['xrf'].keys())
+		flatdata = [item for sublist in scandat['xrf'][channels[0]] for item in sublist]	#flatten list of lists to 1d list
+		# flatdata = scandat['xrf'][channels[0]].flatten()
+		for key in channels[1:]:
+			newflatdata = [item for sublist in scandat['xrf'][key] for item in sublist]		#flatten list of lists to 1d list
+
+			flatdata = np.vstack((flatdata, newflatdata))
+
+		corrmat = np.corrcoef(flatdata)
+
+		# generate and save plot
+		fig, ax = plt.subplots()
+		im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'))
+		ax.set_xticks(np.arange(len(channels)))
+		ax.set_yticks(np.arange(len(channels)))
+		ax.set_xticklabels(channels)
+		ax.set_yticklabels(channels)
+		ax.tick_params(axis = 'both', which = 'major', labelsize = 14)
+		
+		savefolder = os.path.join(self.outputfolder, str(scan))
+		if not os.path.exists(savefolder):
+			os.mkdir(savefolder)
+
+		image_format = 'jpeg'
+		savepath = os.path.join(savefolder, 'correlationmatrix.' + image_format)
 		
 		plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
 		plt.close() 
@@ -716,7 +749,7 @@ class build:
 
 			return imtable
 
-		def build_scan_page(doc, Story, scan_number, title, text, overviewmap_image_filepath, scan_params, scan_image_filepaths, integratedspectrum_image_filepath):
+		def build_scan_page(doc, Story, scan_number, title, text, overviewmap_image_filepath, scan_params, scan_image_filepaths, integratedspectrum_image_filepath, corrmat_image_filepath):
 			### text section
 			headerstr = 'Scan ' + str(scan_number) + ': ' + title
 
@@ -737,21 +770,29 @@ class build:
 
 
 			_, hlim = get_frame_dimensions(doc, 'ScanPage', 'overviewmapframe')
-			imoverview = ScaledImage(overviewmap_image_filepath, 'height', lim)
+			imoverview = ScaledImage(overviewmap_image_filepath, 'height', hlim)
 			Story.append(imoverview)
 			Story.append(FrameBreak())
 			# Story.append(PageBreak())
 
 			###integrated xrf spectrum
-			_, hlim = get_frame_dimensions(doc, 'ScanPage', 'intspecframe')
-			imintspectrum = ScaledImage(integratedspectrum_image_filepath, 'height', lim)
+			wlim, hlim = get_frame_dimensions(doc, 'ScanPage', 'intspecframe')
+			imintspectrum = ScaledImage(integratedspectrum_image_filepath, 'width', wlim)
 			Story.append(imintspectrum)
 			Story.append(FrameBreak())			
+
+			### correlation matrix
+			wlim, hlim = get_frame_dimensions(doc, 'ScanPage', 'corrmatframe')
+			imcorrmat = ScaledImage(corrmat_image_filepath, 'height', hlim)
+			Story.append(imcorrmat)
+			Story.append(FrameBreak())
+
 			# imspectrum = ScaledImage(integratedspectrum_image_filepath, 'width', doc.width * 0.45)
 			### xrf maps section
 			# frame = doc.getFrame('xrfframe')
 			# width = frame._aW
 			# height = frame.aH
+
 			wlim, hlim = get_frame_dimensions(doc, 'ScanPage', 'xrfframe')
 			imtable = generate_image_matrix(scan_image_filepaths,
 				max_num_cols = 4,
@@ -800,17 +841,11 @@ class build:
 			return(Story)
 
 		def get_frame_dimensions(doc, pageid, frameid):
-			print('Pages')
-			for x in doc.pageTemplates:
-				print(x.id)
+			margin = 0.85
 			page = [x for x in doc.pageTemplates if x.id == pageid]
-			print('Frames')
-			for x in page:
-				print(page)
-			frame = [x for x in page if x.id == frameid]
-			print(frame)
-			width = frame.width
-			height = frame.height
+			frame = [x for x in page[0].frames if x.id == frameid]
+			width = frame[0].width * margin
+			height = frame[0].height * margin
 			return width, height
 
 		def buildPageTemplates(doc, Story):
@@ -831,9 +866,10 @@ class build:
 				)
 
 			## scan page template
-			text_width = doc.width * 0.5
-			text_height = doc.height * 0.25
+			text_width = doc.width * 0.7
+			text_height = doc.height * 0.15
 			intspec_height = doc.height * 0.2
+			intspec_width = doc.width * 0.7
 
 			textframe = Frame(
 				x1 = doc.leftMargin,
@@ -842,22 +878,28 @@ class build:
 				height = text_height,
 				id = 'textframe')
 			overviewmapframe = Frame(
-				x1 = doc.leftMargin + doc.width * 0.5,
+				x1 = doc.leftMargin + text_width,
 				y1 = PAGE_HEIGHT - doc.topMargin - text_height, 
 				width = doc.width - text_width,
 				height = text_height,
 				id = 'overviewmapframe')
 			intspecframe = Frame(
-				x1 = doc.leftMargin,
+				x1 = doc.leftMargin ,
 				y1 = PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
-				width = doc.width,
+				width = intspec_width,
 				height = intspec_height,
 				id = 'intspecframe')
+			corrmatframe = Frame(
+				x1 = doc.leftMargin + intspec_width,
+				y1 = PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
+				width = doc.width - intspec_width,
+				height = intspec_height,
+				id = 'corrmatframe')
 			xrfframe = Frame(
 				x1 = doc.leftMargin * 0.5,
-				y1 = doc.bottomMargin * 0.8, 
+				y1 = doc.bottomMargin, 
 				width = doc.width + doc.leftMargin,
-				height = doc.height - text_height,
+				height = doc.height - text_height - intspec_height,
 				id = 'xrfframe')
 
 			## 2-scan comparison page template
@@ -896,7 +938,7 @@ class build:
 
 			doc.addPageTemplates([
 								 PageTemplate(id='TitlePage',frames=[titleframe,subtitleframe], onPage = FirstPage),
-								 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,xrfframe], onPage = myLaterPages),
+								 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,intspecframe,corrmatframe,xrfframe], onPage = myLaterPages),
 								 PageTemplate(id='Comparison_2',frames=makecomparisontemplate(2), onPage = myLaterPages),
 								 PageTemplate(id='Comparison_3',frames=makecomparisontemplate(3), onPage = myLaterPages),
 								 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = myLaterPages)
@@ -929,6 +971,8 @@ class build:
 
 					overviewpath = self.plotoverview(scan, scandat)
 					integratedspectrumpath = self.plotintegratedxrf(scan, vals)
+					corrmatpath = self.plotcorrmat(scan, vals)
+
 
 					scan_params = {'x_range': int(max(vals['x']) - min(vals['x'])),
 								   'y_range': int(max(vals['y']) - min(vals['y'])),
@@ -947,7 +991,8 @@ class build:
 						scan_params = scan_params,
 						overviewmap_image_filepath = overviewpath, 
 						scan_image_filepaths = impaths,
-						integratedspectrum_image_filepath = integratedspectrumpath
+						integratedspectrum_image_filepath = integratedspectrumpath,
+						corrmat_image_filepath = corrmatpath
 						)
 
 				return story
@@ -1038,7 +1083,7 @@ class build:
 
 			outputpath = os.path.join(self.outputfolder, self.title)
 			
-			doc.build(Story)
+			self.doc.build(self.Story)
 
 			import subprocess
 			subprocess.Popen(outputpath ,shell=True)
