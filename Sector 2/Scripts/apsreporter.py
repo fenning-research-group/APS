@@ -12,7 +12,7 @@ from matplotlib import cm
 from matplotlib_scalebar.scalebar import ScaleBar
 import matplotlib.colors as colors
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,AutoMinorLocator)
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, Frame, FrameBreak, PageTemplate, NextPageTemplate, KeepInFrame
+from reportlab.platypus import SimpleDocTemplate, BaseDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, Frame, FrameBreak, PageTemplate, NextPageTemplate, KeepInFrame
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.rl_config import defaultPageSize
 from reportlab.lib.units import inch
@@ -353,8 +353,12 @@ class build:
 			self.tableofcontents = json.load(f)
 		self.outputfolder = outputfolder
 		f = os.path.join(outputfolder, title)
-		self.doc = SimpleDocTemplate(f,
-			showBoundary = boundaries)
+		self.doc = BaseDocTemplate(f,
+			showBoundary = boundaries,
+			leftMargin = inch/2,
+			rightMargin = inch/2,
+			bottomMargin = inch/2,
+			topMargin = inch/2)
 		self.Story = []
 		self.title = title
 
@@ -543,7 +547,7 @@ class build:
 		ax = plt.gca()
 		plt.yscale('log')
 		plt.xlabel('Energy (keV)')
-		plt.ylabel('Counts')
+		plt.ylabel('Counts (log)')
 		ax.autoscale(enable = True, tight = True)
 		plt.gca().xaxis.set_major_locator(MultipleLocator(1))
 		plt.gca().xaxis.set_minor_locator(MultipleLocator(0.2))
@@ -712,7 +716,7 @@ class build:
 
 			return imtable
 
-		def build_scan_page(doc, Story, scan_number, title, text, overviewmap_image_filepath, scan_params, scan_image_filepaths):
+		def build_scan_page(doc, Story, scan_number, title, text, overviewmap_image_filepath, scan_params, scan_image_filepaths, integratedspectrum_image_filepath):
 			### text section
 			headerstr = 'Scan ' + str(scan_number) + ': ' + title
 
@@ -725,30 +729,37 @@ class build:
 
 			Story.append(Paragraph(headerstr, styles['Heading1']))
 			for each in subheaderstr:
-				Story.append(Paragraph(each, styles['Heading3']))  
+				Story.append(Paragraph(each, styles['Normal']))  
 			Story.append(Paragraph(text, styles['Normal']))
 			# Story.append(PageBreak())
 			Story.append(FrameBreak())
 			### overview map section
 
-			imoverview = ScaledImage(overviewmap_image_filepath, 'width', doc.width * 0.45)
+
+			_, hlim = get_frame_dimensions(doc, 'ScanPage', 'overviewmapframe')
+			imoverview = ScaledImage(overviewmap_image_filepath, 'height', lim)
 			Story.append(imoverview)
 			Story.append(FrameBreak())
 			# Story.append(PageBreak())
 
 			###integrated xrf spectrum
-
+			_, hlim = get_frame_dimensions(doc, 'ScanPage', 'intspecframe')
+			imintspectrum = ScaledImage(integratedspectrum_image_filepath, 'height', lim)
+			Story.append(imintspectrum)
+			Story.append(FrameBreak())			
 			# imspectrum = ScaledImage(integratedspectrum_image_filepath, 'width', doc.width * 0.45)
 			### xrf maps section
 			# frame = doc.getFrame('xrfframe')
 			# width = frame._aW
 			# height = frame.aH
-
+			wlim, hlim = get_frame_dimensions(doc, 'ScanPage', 'xrfframe')
 			imtable = generate_image_matrix(scan_image_filepaths,
 				max_num_cols = 4,
-				max_width = doc.width + doc.leftMargin,
-				max_height = doc.height * 0.62)
+				max_width = wlim,
+				max_height = hlim)
 			Story.append(imtable)
+
+
 			# Story.append(PageBreak())
 
 			return Story
@@ -788,7 +799,21 @@ class build:
 
 			return(Story)
 
-		def go(doc, Story, outputpath):
+		def get_frame_dimensions(doc, pageid, frameid):
+			print('Pages')
+			for x in doc.pageTemplates:
+				print(x.id)
+			page = [x for x in doc.pageTemplates if x.id == pageid]
+			print('Frames')
+			for x in page:
+				print(page)
+			frame = [x for x in page if x.id == frameid]
+			print(frame)
+			width = frame.width
+			height = frame.height
+			return width, height
+
+		def buildPageTemplates(doc, Story):
 			## title page template
 
 			titleframe = Frame(
@@ -807,7 +832,8 @@ class build:
 
 			## scan page template
 			text_width = doc.width * 0.5
-			text_height = doc.height * 0.35
+			text_height = doc.height * 0.25
+			intspec_height = doc.height * 0.2
 
 			textframe = Frame(
 				x1 = doc.leftMargin,
@@ -821,6 +847,12 @@ class build:
 				width = doc.width - text_width,
 				height = text_height,
 				id = 'overviewmapframe')
+			intspecframe = Frame(
+				x1 = doc.leftMargin,
+				y1 = PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
+				width = doc.width,
+				height = intspec_height,
+				id = 'intspecframe')
 			xrfframe = Frame(
 				x1 = doc.leftMargin * 0.5,
 				y1 = doc.bottomMargin * 0.8, 
@@ -870,7 +902,6 @@ class build:
 								 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = myLaterPages)
 								 ]
 								)
-			doc.build(Story)
 
 		def report(self):
 
@@ -916,6 +947,7 @@ class build:
 						scan_params = scan_params,
 						overviewmap_image_filepath = overviewpath, 
 						scan_image_filepaths = impaths,
+						integratedspectrum_image_filepath = integratedspectrumpath
 						)
 
 				return story
@@ -992,6 +1024,7 @@ class build:
 			if not os.path.exists(self.outputfolder):
 				os.mkdir(self.outputfolder)
 
+			buildPageTemplates(self.doc, self.Story)
 
 			self.Story = build_title_page(
 				doc = self.doc,
@@ -1004,7 +1037,8 @@ class build:
 				self.Story = writesection(self.Story, section, contents)
 
 			outputpath = os.path.join(self.outputfolder, self.title)
-			go(self.doc, self.Story, outputpath)
+			
+			doc.build(Story)
 
 			import subprocess
 			subprocess.Popen(outputpath ,shell=True)
