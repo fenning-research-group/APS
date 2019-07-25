@@ -1,4 +1,4 @@
-from apsreporter import tableofcontents, section, scanlist, build
+from apsreporter import tableofcontents, section, scanlist, comparison, build
 
 t = tableofcontents(
 	title = '1%Eu_noTreatment',
@@ -23,10 +23,36 @@ sl1 = scanlist(
 		293: 'scan 293 Chemistry map, a small region within the XBIC map'
 	}
 )
-print('Scans 1')
+
+sl1 = scanlist(
+	datafolder = 'G:\My Drive\FRG\Projects\APS\\2IDD_2019\Sample Data - 150C HEP\\data',
+	scans = {
+		63: 'scan 63 description',
+		64: 'scan 64 description',
+		65: 'scan 65 description'
+	}
+)
+
+print('scan list 1')
 sl1.setchannels()
 
+c1 = comparison(
+	title = 'Comparison 1 Title',
+	description = 'Comparison 1 Description',
+	datafolder = 'G:\My Drive\FRG\Projects\APS\\2IDD_2019\Sample Data - 150C HEP\\data',
+	scans = {
+		63: 'scan 63 description',
+		64: 'scan 64 description',
+		65: 'scan 65 description'
+	}
+)
+
+c1.setchannels()
+
+
+
 s1.contents = ('scans1', sl1)
+s1.contents = ('comparison1', c1)
 
 s2 = section(
 	title = 'Section 2',
