@@ -3,8 +3,6 @@
   <component name="ChangeListManager">
     <list default="true" id="2b0f8817-1654-41bd-8c3a-ee264d67eb69" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apsreporter.py" beforeDir="false" afterPath="$PROJECT_DIR$/apsreporter.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sample.py" beforeDir="false" afterPath="$PROJECT_DIR$/sample.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -16,64 +14,30 @@
     <favorites_list name="Scripts" />
   </component>
   <component name="FileEditorManager">
-    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/Viewer.py">
+    <leaf>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="45">
-              <caret line="3" column="85" selection-start-line="3" selection-start-column="85" selection-end-line="3" selection-end-column="85" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/sample.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="214">
-              <caret line="40" selection-start-line="40" selection-end-line="40" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apsreporter.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2234">
-              <caret line="290" column="33" lean-forward="true" selection-start-line="290" selection-start-column="33" selection-end-line="290" selection-end-column="33" />
+            <state relative-caret-position="137">
+              <caret line="1030" selection-start-line="1030" selection-end-line="1030" />
               <folding>
                 <element signature="e#0#29#0" expanded="true" />
-                <element signature="e#3492#4544#0" />
+                <element signature="e#1169#5637#0" />
+                <element signature="e#6089#9135#0" />
+                <element signature="e#9392#11619#0" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
-        <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/plotXRF.py">
+      <file pinned="false" current-in-tab="false">
+        <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="250">
-              <caret line="32" column="30" selection-start-line="32" selection-start-column="30" selection-end-line="32" selection-end-column="30" />
+            <state relative-caret-position="325">
+              <caret line="78" selection-start-line="78" selection-end-line="78" />
               <folding>
-                <element signature="e#88#97#0" expanded="true" />
+                <element signature="e#0#10#0" expanded="true" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$APPLICATION_HOME_DIR$/helpers/pydev/_pydev_imps/_pydev_execfile.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="255">
-              <caret line="17" selection-start-line="17" selection-end-line="17" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/Export.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="60">
-              <caret line="4" column="38" selection-start-line="4" selection-start-column="38" selection-end-line="4" selection-end-column="38" />
             </state>
           </provider>
         </entry>
@@ -97,6 +61,12 @@
       <find>imshow</find>
       <find>dwell</find>
       <find>plotxrf</find>
+      <find>tkinter</find>
+      <find>channel</find>
+      <find>self._channels</find>
+      <find>readscans</find>
+      <find>writescanlist</find>
+      <find>writesection</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -112,8 +82,15 @@
         <option value="$PROJECT_DIR$/sample.py" />
         <option value="$PROJECT_DIR$/apsreporter.py" />
         <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/plotXRF.py" />
+        <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py" />
       </list>
     </option>
+  </component>
+  <component name="ProjectFrameBounds">
+    <option name="x" value="175" />
+    <option name="y" value="48" />
+    <option name="width" value="1400" />
+    <option name="height" value="877" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true">
     <ConfirmationsSetting value="1" id="Add" />
@@ -123,27 +100,13 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
+      <pane id="ProjectPane" />
       <pane id="Scope">
         <subPane subId="Scope 'Project Files'; set:Project Files; class com.intellij.psi.search.scope.ProjectFilesScope">
           <expand>
             <path>
               <item name="Scripts" type="3d21c010:ScopeViewTreeModel$ProjectNode" />
-              <item name="" type="442cc68d:ScopeViewTreeModel$RootNode" />
-            </path>
-            <path>
-              <item name="Scripts" type="3d21c010:ScopeViewTreeModel$ProjectNode" />
               <item name="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing" type="442cc68d:ScopeViewTreeModel$RootNode" />
-            </path>
-          </expand>
-          <select />
-        </subPane>
-      </pane>
-      <pane id="ProjectPane">
-        <subPane>
-          <expand>
-            <path>
-              <item name="Scripts" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pyDataProcessing" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -155,6 +118,9 @@
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing" />
     </key>
@@ -172,7 +138,7 @@
     </option>
   </component>
   <component name="RunManager">
-    <configuration name="plotXRF" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+    <configuration name="eu_in_csfapi" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="pyDataProcessing" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -184,7 +150,7 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/plotXRF.py" />
+      <option name="SCRIPT_NAME" value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -208,20 +174,19 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="40" y="23" width="1400" height="877" extended-state="0" />
-    <editor active="true" />
+    <frame x="175" y="48" width="1400" height="877" extended-state="0" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" sideWeight="0.49893844" visible="true" weight="0.24945612" />
       <window_info id="Structure" order="1" sideWeight="0.50106156" side_tool="true" weight="0.24945612" />
       <window_info id="Favorites" order="2" sideWeight="0.50106156" side_tool="true" weight="0.24945612" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info anchor="bottom" id="Run" order="2" weight="0.3299363" />
-      <window_info active="true" anchor="bottom" id="Debug" order="3" visible="true" weight="0.4" />
+      <window_info anchor="bottom" id="Run" order="2" weight="0.32891566" />
+      <window_info active="true" anchor="bottom" id="Debug" order="3" visible="true" weight="0.42292994" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" weight="0.3299363" />
-      <window_info anchor="bottom" id="Version Control" order="7" weight="0.3299363" />
+      <window_info anchor="bottom" id="Version Control" order="7" weight="0.32891566" />
       <window_info anchor="bottom" id="Terminal" order="8" weight="0.3299363" />
       <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
       <window_info anchor="bottom" id="Python Console" order="10" weight="0.3299363" />
@@ -234,26 +199,38 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/plotXRF.py</url>
-          <line>10</line>
-          <option name="timeStamp" value="20" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/sample.py</url>
           <line>40</line>
           <option name="timeStamp" value="23" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/apsreporter.py</url>
-          <line>69</line>
+          <line>70</line>
           <option name="timeStamp" value="24" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/plotXRF.py</url>
-          <line>24</line>
-          <option name="timeStamp" value="27" />
+          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py</url>
+          <line>274</line>
+          <option name="timeStamp" value="25" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py</url>
+          <line>66</line>
+          <option name="timeStamp" value="28" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py</url>
+          <line>1030</line>
+          <option name="timeStamp" value="30" />
         </line-breakpoint>
       </breakpoints>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
@@ -296,12 +273,39 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$USER_HOME$/miniconda3/envs/Scripts/lib/python3.6/tkinter/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="157">
+          <caret line="2225" selection-start-line="2225" selection-end-line="2225" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/plotXRF.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="250">
-          <caret line="32" column="30" selection-start-line="32" selection-start-column="30" selection-end-line="32" selection-end-column="30" />
+        <state relative-caret-position="180">
+          <caret line="17" column="31" selection-start-line="17" selection-start-column="31" selection-end-line="17" selection-end-column="31" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="325">
+          <caret line="78" selection-start-line="78" selection-end-line="78" />
           <folding>
-            <element signature="e#88#97#0" expanded="true" />
+            <element signature="e#0#10#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="137">
+          <caret line="1030" selection-start-line="1030" selection-end-line="1030" />
+          <folding>
+            <element signature="e#0#29#0" expanded="true" />
+            <element signature="e#1169#5637#0" />
+            <element signature="e#6089#9135#0" />
+            <element signature="e#9392#11619#0" />
           </folding>
         </state>
       </provider>
