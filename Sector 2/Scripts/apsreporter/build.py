@@ -20,7 +20,7 @@ from .plotting import truncate_colormap, plotxrf, plotoverview, plotintegratedxr
 
 class build:
 
-	def __init__(self, tableofcontents, outputfolder, title, boundaries = False, pageinfo = "2-ID-D, July 2019", fontname = 'Open Sans', titlefontsize = 16, bodyfontsize = 9):
+	def __init__(self, tableofcontents, outputfolder, title, boundaries = False, pageinfo = "2-ID-D, July 2019", fontname = 'Open Sans', titlefontsize = 16, bodyfontsize = 9, logscale = False, overwrite = True):
 		pdfmetrics.registerFont(TTFont(fontname, 'Vera.ttf'))
 		self.PAGE_HEIGHT = defaultPageSize[1]
 		self.PAGE_WIDTH = defaultPageSize[0]
@@ -28,13 +28,14 @@ class build:
 		self.styles.add(ParagraphStyle(name='CenterTitle', fontSize = 24, alignment=TA_CENTER))
 		self.styles.add(ParagraphStyle(name='CenterSubtitle', fontSize = 16, alignment=TA_CENTER, leading = 16))
 		self.pageInfo = pageinfo
-
 		self.title = title
 		self.pageinfo = pageinfo
 		self.titlefont = fontname
 		self.titlefontsize = titlefontsize
 		self.bodyfont = fontname
 		self.bodyfontsize = bodyfontsize
+		self.logscale = logscale
+		self.overwrite = overwrite
 
 		with open(tableofcontents, 'r') as f:
 			self.tableofcontents = json.load(f)
@@ -89,7 +90,8 @@ class build:
 					xrfdat = {}
 					for channel, xrf in zip(all_channels, xrf_data):
 						if channel in channels:
-							xrfdat[channel] = xrf
+							npxrf =  np.array(xrf)
+							xrfdat[channel] = npxrf[:,:-2] #remove last two lines, dead from flyscan
 
 					#build dict with x, y, and xrf data for all scans
 					scandat[int(scan_num)] = {
@@ -429,7 +431,9 @@ class build:
 								channel = channel,
 								x = vals['x'],
 								y = vals['y'],
-								xrf = data
+								xrf = data,
+								logscale = self.logscale,
+								overwrite = self.overwrite
 							 )
 				)
 

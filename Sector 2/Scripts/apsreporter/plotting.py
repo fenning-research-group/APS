@@ -14,7 +14,8 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
 		cmap(np.linspace(minval, maxval, n)))
 	return new_cmap
 
-def plotxrf(outputfolder, scan, channel, x, y, xrf):
+def plotxrf(outputfolder, scan, channel, x, y, xrf, overwrite = True, logscale = False):
+
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):
 		os.mkdir(savefolder)
@@ -22,19 +23,34 @@ def plotxrf(outputfolder, scan, channel, x, y, xrf):
 	image_format = 'jpeg'
 	savepath = os.path.join(savefolder, channel + '.' + image_format)
 
-	if not os.path.exists(savepath):
-		xrf = np.array(xrf)
-		xrf = xrf[:, :-2]	#remove last two lines, dead from 2idd flyscan
-
+	if overwrite or not os.path.exists(savepath):
+		## setup colormap + caxis scale
 		color = cm.get_cmap('viridis')
-		color_trimmed = truncate_colormap(cmap = color, minval = 0.0, maxval = 0.99)	#exclude highest brightness pixels to improve contrast with overlay text
+		# color_trimmed = truncate_colormap(cmap = color, minval = 0.0, maxval = 0.99)	#exclude highest brightness pixels to improve contrast with overlay text
+		color_trimmed = color
+
+		excludedborder = 0.2
+		m,n = xrf.shape
+		mlim = int(np.rint(m * excludedborder))
+		nlim = int(np.rint(n * excludedborder))
+		vmin = np.amin(xrf[mlim:-mlim, nlim:-nlim])
+		vmax = np.amax(xrf[mlim:-mlim, nlim:-nlim])
 
 		fig = plt.figure(figsize = (2, 2))
 		ax = plt.gca()
+
+		if logscale:
+			norm = colors.LogNorm()
+		else:
+			norm = None
+							
 		im = ax.imshow(xrf, 
-			extent =[x[0], x[-3], y[0], y[-1]],
+			extent =[x[0], x[-1], y[0], y[-1]],
 			cmap = color_trimmed,
-			interpolation = 'none')
+			interpolation = 'none',
+			vmin = vmin,
+			vmax = vmax,
+			norm = colors.LogNorm())
 
 		## text + scalebar objects
 		opacity = 1
@@ -174,16 +190,20 @@ def plotintegratedxrf(outputfolder, scan, scandat):
 
 def plotcorrmat(outputfolder, scan, scandat):
 	#build correlation matrix
-	channels = list(scandat['xrf'].keys())
-	flatdata = [item for sublist in scandat['xrf'][channels[0]] for item in sublist]	#flatten list of lists to 1d list
-	# flatdata = scandat['xrf'][channels[0]].flatten()
-	for key in channels[1:]:
-		newflatdata = [item for sublist in scandat['xrf'][key] for item in sublist]		#flatten list of lists to 1d list
+	# flatdata = [item for sublist in scandat['xrf'][channels[0]] for item in sublist]	#flatten list of lists to 1d list
+	# # flatdata = scandat['xrf'][channels[0]].flatten()
+	# for key in channels[1:]:
+	# 	newflatdata = [item for sublist in scandat['xrf'][key] for item in sublist]		#flatten list of lists to 1d list
 
-		flatdata = np.vstack((flatdata, newflatdata))
-	
+	# 	flatdata = np.vstack((flatdata, newflatdata))
+	channels = list(scandat['xrf'].keys())
+
+	flatdata = scandat['xrf'][channels[0]].flatten()
+
+	for key in channels[1:]:
+		flatdata = np.vstack((flatdata, scandat['xrf'][key].flatten()))
+
 	corrmat = np.corrcoef(flatdata)
-	
 	# generate and save plot
 	fig, ax = plt.subplots()
 	im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'))
@@ -202,5 +222,4 @@ def plotcorrmat(outputfolder, scan, scandat):
 	
 	plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
 	plt.close() 
-
 	return savepath
