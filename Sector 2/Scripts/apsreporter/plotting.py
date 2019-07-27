@@ -25,7 +25,7 @@ def plotxrf(outputfolder, scan, channel, x, y, xrf, overwrite = True, logscale =
 
 	if overwrite or not os.path.exists(savepath):
 		## setup colormap + caxis scale
-		color = cm.get_cmap('viridis')
+		color = cm.get_cmap('inferno')
 		# color_trimmed = truncate_colormap(cmap = color, minval = 0.0, maxval = 0.99)	#exclude highest brightness pixels to improve contrast with overlay text
 		color_trimmed = color
 
@@ -70,7 +70,7 @@ def plotxrf(outputfolder, scan, channel, x, y, xrf, overwrite = True, logscale =
 			horizontalalignment = 'left',
 			verticalalignment = 'top')
 
-		ax.text(0.98, 0.98, str(int(np.amax(xrf))) + '\n' + str(int(np.amin(xrf))),
+		ax.text(0.98, 0.98, str(round(np.amax(xrf),2)) + '\n' + str(round(np.amin(xrf),2)),
 			fontname = 'Verdana', 
 			fontsize = 12,
 			color = [1, 1, 1, opacity], 
