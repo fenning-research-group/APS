@@ -283,7 +283,7 @@ class comparison:
 		def channels(self):
 			return self._channels
 		# @channels.setter
-		def setchannels(self):
+		def setchannels(self, channels = None):
 			print(self.title)
 			if channels:
 				self._channels = channels
@@ -317,7 +317,7 @@ class comparison:
 
 				f = os.path.join(self.datafolder, scans[first_scan])	#open first scan h5 file to check which channels are available
 				with h5py.File(f, 'r') as data:
-					all_channels = data['MAPS']['channel_names'][:].astype('U13')
+					all_channels = data['MAPS']['channel_names'][:].astype('U13').tolist()
 
 				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
 				self._channels = pick_channels(all_channels)

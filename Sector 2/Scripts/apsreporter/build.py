@@ -299,19 +299,25 @@ class build:
 
 
 
-		self.Story.append(Paragraph(title, styles['Heading1']))
-		self.Story.append(Paragraph(subtitle, styles['Normal']))
+		self.Story.append(Paragraph(title, self.styles['Heading1']))
+		self.Story.append(Paragraph(subtitle, self.styles['Normal']))
 
 
 		#columns
+		num_columns = len(comparisondict)
+		wlim, hlim = self.get_frame_dimensions('Comparison_' + str(num_columns), 'imageframe_1')
+
 		for _, vals in comparisondict.items():
 			self.Story.append(FrameBreak())
-			self.Story.append(Paragraph(vals['description'], styles['Normal']))
+			self.Story.append(Paragraph(vals['description'], self.styles['Normal']))
 			self.Story.append(FrameBreak())
 			imtable =  self.generate_image_matrix(vals['impaths'],
 				max_num_cols = 1,
-				max_width = doc.width / num_columns * margin,
-				max_height = doc.height * 0.4)
+				max_width = wlim,
+				max_height = hlim
+				)
+				# max_width = self.doc.width / num_columns * margin,
+				# max_height = self.doc.height * 0.4)
 			self.Story.append(imtable)
 
 	def buildPageTemplates(self):
@@ -373,10 +379,10 @@ class build:
 
 		def makecomparisontemplate(num_columns):
 			margin = 1-0.01
-			header_height = doc.height * 0.1 * margin
-			subheader_height = doc.height * 0.1 * margin
-			column_height = (doc.height - header_height - subheader_height) * margin
-			column_width = (doc.width/ (num_columns)) * margin
+			header_height = doc.height * 0.1
+			subheader_height = doc.height * 0.07
+			column_height = (doc.height - header_height - subheader_height)
+			column_width = (doc.width + doc.leftMargin) / (num_columns)
 
 			frames = []
 
@@ -388,18 +394,18 @@ class build:
 							id = 'headerframe'))
 			for n in range(num_columns):
 				frames.append(Frame(
-								x1 = doc.leftMargin + n*column_width,
+								x1 = doc.leftMargin/2 + n*column_width,
 								y1 = self.PAGE_HEIGHT - doc.topMargin - header_height - subheader_height, 
 								width = column_width,
 								height = subheader_height,
-								id = 'subheader_' + str(n+1)))
+								id = 'subheader_' + str(n)))
 
 				frames.append(Frame(
-								x1 = doc.leftMargin + n*column_width,
+								x1 = doc.leftMargin/2 + n*column_width,
 								y1 = doc.bottomMargin, 
 								width = column_width,
 								height = doc.height - header_height - subheader_height,
-								id = 'headerframe_' + str(n+1)))
+								id = 'imageframe_' + str(n)))
 			return frames
 
 
