@@ -123,7 +123,8 @@ class tableofcontents:
 			jcomparison = {
 				'title': comparison.title,
 				'description': comparison.description,
-				'channels': comparison._channels
+				'channels': comparison._channels,
+				'ratiochannels': comparison._ratiochannels
 			}
 			jscan = {}
 			for scan, description in comparison._scans.items():
@@ -131,6 +132,7 @@ class tableofcontents:
 					description = ''
 				jscan[scan] = {
 					'description': description,
+					'ratiochannels': comparison._ratiochannels,
 					'energy': self._energy[scan],
 					'dwell': self._dwell[scan]
 				}
@@ -219,7 +221,8 @@ class scanlist:
 			else:
 				def pick_channels(channels):
 					# tkinter gui to select channels
-					master = Tk()				
+					master = Tk()
+					master.title('Elements for scanlist')
 					max_rows = 5
 					max_col = 0
 					var = []
@@ -316,7 +319,7 @@ class comparison:
 		def ratiochannels(self):
 			return self._ratiochannels
 		# @channels.setter
-		def setchannels(self):
+		def setchannels(self,channels = None):
 			print(self.title)
 			if channels:
 				self._channels = channels
@@ -326,6 +329,7 @@ class comparison:
 				def pick_channels(channels):
 					# tkinter gui to select channels
 					master = Tk()
+					master.title('Elements for comparison')
 					max_rows = 5
 					max_col = 0
 					var = []
@@ -375,7 +379,7 @@ class comparison:
 
 				f = os.path.join(self.datafolder, scans[first_scan])	#open first scan h5 file to check which channels are available
 				with h5py.File(f, 'r') as data:
-					all_channels = data['MAPS']['channel_names'][:].astype('U13')
+					all_channels = data['MAPS']['channel_names'][:].astype('U13').tolist()
 
 				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
 				self._channels, self._ratiochannels = pick_channels(all_channels)

@@ -62,11 +62,14 @@ class build:
 				scaler_names = dat['MAPS']['scaler_names'][:].astype('U13').tolist()
 				dsic_index = scaler_names.index('ds_ic') #[index for index in scaler_names if index == 'ds_ic']
 				DSIC = dat['MAPS']['scalers'][dsic_index][:]
+				USIC = dat['MAPS']['scalers'][scaler_names.index('us_ic')]
 
 
 				channels = dat['MAPS']['channel_names'][:].astype('U13').tolist()
 				channels.append('XBIC')
+				channels.append('USIC')
 				xrf.append(DSIC)
+				xrf.append(USIC)
 
 			return xvals, yvals, xrf, channels, summed_xrf
 
@@ -75,6 +78,7 @@ class build:
 		#     energy = dat['MAPS']['energy'][:]
 		scans = list(scanlist.keys())
 		channels = scanlist[scans[0]]['channels']
+		ratiochannels = scanlist[scans[0]]['ratiochannels']
 
 		files = os.listdir(self.tableofcontents['DataFolder'])
 		scandat = {}
@@ -92,6 +96,15 @@ class build:
 						if channel in channels:
 							npxrf =  np.array(xrf)
 							xrfdat[channel] = npxrf[:,:-2] #remove last two lines, dead from flyscan
+
+					#get the elemental ratio maps
+					for ratioch in ratiochannels:
+						elm1xrf = np.array(xrf_data[all_channels.index(ratioch[0])])[:,:-2]
+						elm2xrf = np.array(xrf_data[all_channels.index(ratioch[1])])[:,:-2]
+						ratiomap = np.divide(elm1xrf,elm2xrf)
+						ratiochStr = ratioch[0] + ':' + ratioch[1]
+						channels.append(ratiochStr)
+						xrfdat[ratiochStr]=ratiomap
 
 					#build dict with x, y, and xrf data for all scans
 					scandat[int(scan_num)] = {
@@ -111,7 +124,7 @@ class build:
 	def FirstPage(self, canvas, doc):
 		doc = self.doc
 		canvas.saveState()
-		frg_logo = 'C:\\Users\\RishiKumar\\Documents\\GitHub\\APS\\Sector 2\\Scripts\\Untitled.png'
+		frg_logo = '/Users/graceluo/Documents/GitHub/APS/Sector 2/Scripts/Untitled.png'
 		im = pilImage.open(frg_logo)
 		imwidth, imheight = im.size
 		logowidth = doc.width * 0.9
@@ -296,17 +309,18 @@ class build:
 	def build_comparison_page(self, title, subtitle, comparisondict):
 		margin = 0.99
 		num_columns = len(comparisondict)
+		doc = self.doc
 
 
 
-		self.Story.append(Paragraph(title, styles['Heading1']))
-		self.Story.append(Paragraph(subtitle, styles['Normal']))
+		self.Story.append(Paragraph(title, self.styles['Heading1']))
+		self.Story.append(Paragraph(subtitle, self.styles['Normal']))
 
 
 		#columns
 		for _, vals in comparisondict.items():
 			self.Story.append(FrameBreak())
-			self.Story.append(Paragraph(vals['description'], styles['Normal']))
+			self.Story.append(Paragraph(vals['description'], self.styles['Normal']))
 			self.Story.append(FrameBreak())
 			imtable =  self.generate_image_matrix(vals['impaths'],
 				max_num_cols = 1,
