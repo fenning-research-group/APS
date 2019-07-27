@@ -124,7 +124,7 @@ class build:
 	def FirstPage(self, canvas, doc):
 		doc = self.doc
 		canvas.saveState()
-		frg_logo = '/Users/graceluo/Documents/GitHub/APS/Sector 2/Scripts/Untitled.png'
+		frg_logo = 'C:\\Users\\RishiKumar\\Documents\\GitHub\\APS\\Sector 2\\Scripts\\Untitled.png'
 		im = pilImage.open(frg_logo)
 		imwidth, imheight = im.size
 		logowidth = doc.width * 0.9
@@ -145,7 +145,7 @@ class build:
 
 	def get_frame_dimensions(self, pageid, frameid):
 		doc = self.doc
-		margin = 0.85
+		margin = 1
 		page = [x for x in doc.pageTemplates if x.id == pageid]
 		frame = [x for x in page[0].frames if x.id == frameid]
 		width = frame[0].width * margin
@@ -155,6 +155,7 @@ class build:
 	def ScaledImage(self, filepath, dimension, size):
 		im = pilImage.open(filepath)
 		imwidth, imheight = im.size
+
 
 		if dimension == 'width' or 'Width':
 			printwidth = size
@@ -276,7 +277,7 @@ class build:
 
 		###integrated xrf spectrum
 		wlim, hlim = self.get_frame_dimensions('ScanPage', 'intspecframe')
-		imintspectrum = self.ScaledImage(integratedspectrum_image_filepath, 'width', wlim)
+		imintspectrum = self.ScaledImage(integratedspectrum_image_filepath, 'width', wlim*0.9)
 		self.Story.append(imintspectrum)
 		self.Story.append(FrameBreak())			
 
@@ -343,6 +344,10 @@ class build:
 			y1 = doc.height/2,
 			width = doc.width,
 			height = doc.height*.4,
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0
 			)
 
 		subtitleframe = Frame(
@@ -350,6 +355,10 @@ class build:
 			y1 = doc.height/2 -doc.topMargin,
 			width = doc.width,
 			height = doc.height * 0.4,
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0
 			)
 
 		## scan page template
@@ -363,31 +372,51 @@ class build:
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height, 
 			width = text_width,
 			height = text_height,
-			id = 'textframe')
+			id = 'textframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		overviewmapframe = Frame(
 			x1 = doc.leftMargin + text_width,
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height, 
 			width = doc.width - text_width,
 			height = text_height,
-			id = 'overviewmapframe')
+			id = 'overviewmapframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		intspecframe = Frame(
 			x1 = doc.leftMargin ,
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
 			width = intspec_width,
 			height = intspec_height,
-			id = 'intspecframe')
+			id = 'intspecframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		corrmatframe = Frame(
 			x1 = doc.leftMargin + intspec_width,
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
 			width = doc.width - intspec_width,
 			height = intspec_height,
-			id = 'corrmatframe')
+			id = 'corrmatframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		xrfframe = Frame(
 			x1 = doc.leftMargin * 0.5,
 			y1 = doc.bottomMargin, 
 			width = doc.width + doc.leftMargin,
 			height = doc.height - text_height - intspec_height,
-			id = 'xrfframe')
+			id = 'xrfframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 
 		## 2-scan comparison page template
 
@@ -405,21 +434,33 @@ class build:
 							y1 = self.PAGE_HEIGHT - doc.topMargin - header_height, 
 							width = doc.width,
 							height = header_height,
-							id = 'headerframe'))
+							id = 'headerframe',
+							leftPadding = 0,
+							rightPadding = 0,
+							topPadding = 0,
+							bottomPadding = 0))
 			for n in range(num_columns):
 				frames.append(Frame(
 								x1 = doc.leftMargin/2 + n*column_width,
 								y1 = self.PAGE_HEIGHT - doc.topMargin - header_height - subheader_height, 
 								width = column_width,
 								height = subheader_height,
-								id = 'subheader_' + str(n)))
+								id = 'subheader_' + str(n),
+								leftPadding = 0,
+								rightPadding = 0,
+								topPadding = 0,
+								bottomPadding = 0))
 
 				frames.append(Frame(
 								x1 = doc.leftMargin/2 + n*column_width,
 								y1 = doc.bottomMargin, 
 								width = column_width,
 								height = doc.height - header_height - subheader_height,
-								id = 'imageframe_' + str(n)))
+								id = 'imageframe_' + str(n),
+								leftPadding = 0,
+								rightPadding = 0,
+								topPadding = 0,
+								bottomPadding = 0))
 			return frames
 
 
