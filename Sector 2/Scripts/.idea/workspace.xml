@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="2b0f8817-1654-41bd-8c3a-ee264d67eb69" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apsreporter/tableofcontents.py" beforeDir="false" afterPath="$PROJECT_DIR$/apsreporter/tableofcontents.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -14,34 +14,103 @@
     <favorites_list name="Scripts" />
   </component>
   <component name="FileEditorManager">
-    <leaf>
-      <file pinned="false" current-in-tab="true">
-        <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="245">
-              <caret line="276" column="119" selection-start-line="276" selection-start-column="80" selection-end-line="276" selection-end-column="119" />
-              <folding>
-                <element signature="e#0#29#0" expanded="true" />
-                <element signature="e#5655#6069#0" />
-                <element signature="e#9392#11619#0" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="330">
-              <caret line="79" selection-start-line="79" selection-end-line="79" />
-              <folding>
-                <element signature="e#0#10#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-    </leaf>
+    <splitter split-orientation="horizontal" split-proportion="0.45700485">
+      <split-first>
+        <leaf>
+          <file pinned="false" current-in-tab="true">
+            <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="347">
+                  <caret line="99" selection-start-line="99" selection-end-line="99" />
+                  <folding>
+                    <element signature="e#0#10#0" expanded="true" />
+                  </folding>
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="false">
+            <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/build.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="261">
+                  <caret line="139" column="29" lean-forward="true" selection-start-line="139" selection-start-column="29" selection-end-line="139" selection-end-column="29" />
+                  <folding>
+                    <element signature="e#0#173#0" expanded="true" />
+                    <element signature="e#1028#1986#0" />
+                    <element signature="e#2727#2775#0" />
+                    <element signature="e#4565#4849#0" />
+                    <element signature="e#4903#5141#0" />
+                    <element signature="e#5196#5621#0" />
+                    <element signature="e#5297#5355#0" />
+                    <element signature="e#5401#5460#0" />
+                    <element signature="e#5709#7392#0" />
+                    <element signature="e#5726#5748#0" />
+                    <element signature="e#6533#6576#0" />
+                    <element signature="e#6664#6734#0" />
+                    <element signature="e#6890#7264#0" />
+                    <element signature="e#6941#7231#0" />
+                    <element signature="e#6981#7194#0" />
+                    <element signature="e#7572#9474#0" />
+                    <element signature="e#8534#8566#0" />
+                    <element signature="e#9057#9150#0" />
+                    <element signature="e#9524#9794#0" />
+                    <element signature="e#9900#10459#0" />
+                    <element signature="e#10127#10459#0" />
+                    <element signature="e#10494#13633#0" />
+                    <element signature="e#12048#13049#0" />
+                    <element signature="e#12540#13032#0" />
+                    <element signature="e#13075#13624#0" />
+                    <element signature="e#13943#15381#0" />
+                    <element signature="e#14044#14308#0" />
+                    <element signature="e#14668#14955#0" />
+                    <element signature="e#15425#16369#0" />
+                    <element signature="e#15856#16218#0" />
+                    <element signature="e#15991#16218#0" />
+                    <element signature="e#16543#16736#0" />
+                    <element signature="e#16832#17119#0" />
+                    <element signature="e#17163#17610#0" />
+                  </folding>
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="false">
+            <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/plotting.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="-937">
+                  <caret line="72" selection-start-line="72" selection-end-line="72" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+        </leaf>
+      </split-first>
+      <split-second>
+        <leaf>
+          <file pinned="false" current-in-tab="false">
+            <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/tableofcontents.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="-1311">
+                  <caret line="110" column="39" lean-forward="true" selection-start-line="110" selection-start-column="39" selection-end-line="110" selection-end-column="39" />
+                  <folding>
+                    <element signature="e#0#29#0" expanded="true" />
+                  </folding>
+                </state>
+              </provider>
+            </entry>
+          </file>
+          <file pinned="false" current-in-tab="true">
+            <entry file="file://$PROJECT_DIR$/apsreporter/tableofcontents.py">
+              <provider selected="true" editor-type-id="text-editor">
+                <state relative-caret-position="454">
+                  <caret line="224" column="28" selection-start-line="224" selection-start-column="28" selection-end-line="224" selection-end-column="28" />
+                </state>
+              </provider>
+            </entry>
+          </file>
+        </leaf>
+      </split-second>
+    </splitter>
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -67,6 +136,8 @@
       <find>writescanlist</find>
       <find>writesection</find>
       <find>readscan</find>
+      <find>parse</find>
+      <find>json</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -83,10 +154,16 @@
         <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/plotXRF.py" />
         <option value="$PROJECT_DIR$/apsreporter.py" />
         <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py" />
+        <option value="$PROJECT_DIR$/apsreporter/tableofcontents.py" />
+        <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/tableofcontents.py" />
+        <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py" />
+        <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/plotting.py" />
+        <option value="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/build.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
+    <option name="x" value="9" />
     <option name="y" value="23" />
     <option name="width" value="1400" />
     <option name="height" value="877" />
@@ -95,12 +172,26 @@
     <ConfirmationsSetting value="1" id="Add" />
   </component>
   <component name="ProjectView">
-    <navigator currentView="Scope" currentSubView="Scope 'Project Files'; set:Project Files; class com.intellij.psi.search.scope.ProjectFilesScope" proportions="" version="1">
+    <navigator currentView="Scope" currentSubView="Scope 'Changed Files'; set:Changed Files; ALL; class com.intellij.packageDependencies.ChangeListScope" proportions="" version="1">
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
       <pane id="ProjectPane" />
       <pane id="Scope">
+        <subPane subId="Scope 'Changed Files'; set:Changed Files; ALL; class com.intellij.packageDependencies.ChangeListScope">
+          <expand>
+            <path>
+              <item name="Scripts" type="3d21c010:ScopeViewTreeModel$ProjectNode" />
+              <item name="" type="442cc68d:ScopeViewTreeModel$RootNode" />
+            </path>
+            <path>
+              <item name="Scripts" type="3d21c010:ScopeViewTreeModel$ProjectNode" />
+              <item name="" type="442cc68d:ScopeViewTreeModel$RootNode" />
+              <item name="apsreporter" type="9f88c78c:ScopeViewTreeModel$FileNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
         <subPane subId="Scope 'Project Files'; set:Project Files; class com.intellij.psi.search.scope.ProjectFilesScope">
           <expand>
             <path>
@@ -109,7 +200,17 @@
             </path>
             <path>
               <item name="Scripts" type="3d21c010:ScopeViewTreeModel$ProjectNode" />
+              <item name="" type="442cc68d:ScopeViewTreeModel$RootNode" />
+              <item name="apsreporter" type="9f88c78c:ScopeViewTreeModel$FileNode" />
+            </path>
+            <path>
+              <item name="Scripts" type="3d21c010:ScopeViewTreeModel$ProjectNode" />
               <item name="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing" type="442cc68d:ScopeViewTreeModel$RootNode" />
+            </path>
+            <path>
+              <item name="Scripts" type="3d21c010:ScopeViewTreeModel$ProjectNode" />
+              <item name="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing" type="442cc68d:ScopeViewTreeModel$RootNode" />
+              <item name="apsreporter" type="9f88c78c:ScopeViewTreeModel$FileNode" />
             </path>
           </expand>
           <select />
@@ -125,8 +226,9 @@
       <recent name="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing" />
     </key>
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/apsreporter" />
       <recent name="/Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing" />
+      <recent name="$PROJECT_DIR$" />
     </key>
   </component>
   <component name="RunDashboard">
@@ -178,16 +280,15 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="23" width="1400" height="877" extended-state="0" />
-    <editor active="true" />
+    <frame x="9" y="23" width="1400" height="877" extended-state="0" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.49893844" visible="true" weight="0.24945612" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.49893844" side_tool="true" visible="true" weight="0.24945612" />
       <window_info id="Structure" order="1" sideWeight="0.50106156" side_tool="true" weight="0.24945612" />
       <window_info id="Favorites" order="2" sideWeight="0.50106156" side_tool="true" weight="0.24945612" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info anchor="bottom" id="Run" order="2" weight="0.32891566" />
-      <window_info active="true" anchor="bottom" id="Debug" order="3" visible="true" weight="0.42292994" />
+      <window_info anchor="bottom" id="Run" order="2" visible="true" weight="0.32866243" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.42292994" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" weight="0.3299363" />
@@ -199,6 +300,25 @@
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
     </layout>
+    <layout-to-restore>
+      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.49893844" side_tool="true" weight="0.24945612" />
+      <window_info id="Structure" order="1" sideWeight="0.50106156" side_tool="true" weight="0.24945612" />
+      <window_info id="Favorites" order="2" sideWeight="0.50106156" side_tool="true" weight="0.24945612" />
+      <window_info anchor="bottom" id="Message" order="0" />
+      <window_info anchor="bottom" id="Find" order="1" />
+      <window_info anchor="bottom" id="Run" order="2" weight="0.32866243" />
+      <window_info active="true" anchor="bottom" id="Debug" order="3" visible="true" weight="0.42292994" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="6" weight="0.3299363" />
+      <window_info anchor="bottom" id="Version Control" order="7" weight="0.32891566" />
+      <window_info anchor="bottom" id="Terminal" order="8" weight="0.3299363" />
+      <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
+      <window_info anchor="bottom" id="Python Console" order="10" weight="0.3299363" />
+      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
+    </layout-to-restore>
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -207,26 +327,6 @@
           <url>file://$PROJECT_DIR$/sample.py</url>
           <line>40</line>
           <option name="timeStamp" value="23" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py</url>
-          <line>66</line>
-          <option name="timeStamp" value="28" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py</url>
-          <line>126</line>
-          <option name="timeStamp" value="35" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py</url>
-          <line>277</line>
-          <option name="timeStamp" value="38" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py</url>
-          <line>276</line>
-          <option name="timeStamp" value="39" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
@@ -253,13 +353,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/sample.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="214">
-          <caret line="40" selection-start-line="40" selection-end-line="40" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$APPLICATION_HOME_DIR$/helpers/pydev/_pydev_imps/_pydev_execfile.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="255">
@@ -281,32 +374,231 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/apsreporter.py">
+    <entry file="file://$PROJECT_DIR$/apsreporter.py" />
+    <entry file="file://$PROJECT_DIR$/apsreporter_big.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="319">
-          <caret line="274" column="62" lean-forward="true" selection-start-line="274" selection-start-column="62" selection-end-line="274" selection-end-column="62" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="330">
-          <caret line="79" selection-start-line="79" selection-end-line="79" />
+        <state>
           <folding>
-            <element signature="e#0#10#0" expanded="true" />
+            <element signature="e#0#29#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="245">
-          <caret line="276" column="119" selection-start-line="276" selection-start-column="80" selection-end-line="276" selection-end-column="119" />
+        <state relative-caret-position="82">
+          <caret line="277" column="62" lean-forward="true" selection-start-line="238" selection-start-column="16" selection-end-line="277" selection-end-column="62" />
+          <folding>
+            <element signature="e#1169#5714#0" />
+            <element signature="e#1453#1665#0" />
+            <element signature="e#1669#1697#0" />
+            <element signature="e#1776#1797#0" />
+            <element signature="e#1851#1910#0" />
+            <element signature="e#1913#1940#0" />
+            <element signature="e#2064#2083#0" />
+            <element signature="e#2134#2324#0" />
+            <element signature="e#2176#2324#0" />
+            <element signature="e#2357#2375#0" />
+            <element signature="e#2424#2653#0" />
+            <element signature="e#2465#2653#0" />
+            <element signature="e#2586#2653#0" />
+            <element signature="e#2677#4001#0" />
+            <element signature="e#2715#2809#0" />
+            <element signature="e#2850#3023#0" />
+            <element signature="e#2903#3023#0" />
+            <element signature="e#3070#3313#0" />
+            <element signature="e#3193#3313#0" />
+            <element signature="e#3353#3860#0" />
+            <element signature="e#3392#3860#0" />
+            <element signature="e#3464#3559#0" />
+            <element signature="e#3640#3725#0" />
+            <element signature="e#3768#3860#0" />
+            <element signature="e#4025#5714#0" />
+            <element signature="e#4057#4449#0" />
+            <element signature="e#4197#4433#0" />
+            <element signature="e#4261#4433#0" />
+            <element signature="e#4489#4920#0" />
+            <element signature="e#4503#4620#0" />
+            <element signature="e#4694#4865#0" />
+            <element signature="e#4758#4865#0" />
+            <element signature="e#4955#5428#0" />
+            <element signature="e#5011#5408#0" />
+            <element signature="e#5083#5199#0" />
+            <element signature="e#5106#5199#0" />
+            <element signature="e#5658#5688#0" />
+            <element signature="e#5732#6146#0" />
+            <element signature="e#5781#5862#0" />
+            <element signature="e#5898#5919#0" />
+            <element signature="e#5973#6032#0" />
+            <element signature="e#6036#6064#0" />
+            <element signature="e#6208#6344#0" />
+            <element signature="e#6427#6445#0" />
+            <element signature="e#6495#6518#0" />
+            <element signature="e#6557#6578#0" />
+            <element signature="e#6609#6635#0" />
+            <element signature="e#6926#8311#0" />
+            <element signature="e#7782#7845#0" />
+            <element signature="e#9173#9293#0" />
+            <element signature="e#9297#9308#0" />
+            <element signature="e#9550#11777#0" />
+            <element signature="e#9626#9910#0" />
+            <element signature="e#9993#10011#0" />
+            <element signature="e#10061#10084#0" />
+            <element signature="e#10123#10144#0" />
+            <element signature="e#10194#11777#0" />
+            <element signature="e#10368#11777#0" />
+            <element signature="e#10402#10993#0" />
+            <element signature="e#10540#10758#0" />
+            <element signature="e#11781#11824#0" />
+            <element signature="e#11972#31834#0" />
+            <element signature="e#12052#12306#0" />
+            <element signature="e#12344#14358#0" />
+            <element signature="e#12368#13044#0" />
+            <element signature="e#12403#12993#0" />
+            <element signature="e#13048#13096#0" />
+            <element signature="e#13405#14323#0" />
+            <element signature="e#13553#14323#0" />
+            <element signature="e#13620#14323#0" />
+            <element signature="e#13902#13987#0" />
+            <element signature="e#13933#13987#0" />
+            <element signature="e#14076#14323#0" />
+            <element signature="e#14429#14613#0" />
+            <element signature="e#14663#16235#0" />
+            <element signature="e#14912#16215#0" />
+            <element signature="e#16279#17491#0" />
+            <element signature="e#16355#16571#0" />
+            <element signature="e#16743#17136#0" />
+            <element signature="e#17540#19013#0" />
+            <element signature="e#18155#18174#0" />
+            <element signature="e#19038#31834#0" />
+            <element signature="e#19397#19843#0" />
+            <element signature="e#19881#20142#0" />
+            <element signature="e#20193#20632#0" />
+            <element signature="e#20297#20356#0" />
+            <element signature="e#20404#20464#0" />
+            <element signature="e#20716#22456#0" />
+            <element signature="e#20734#20756#0" />
+            <element signature="e#21573#21617#0" />
+            <element signature="e#21710#21781#0" />
+            <element signature="e#21945#22324#0" />
+            <element signature="e#21998#22290#0" />
+            <element signature="e#22039#22251#0" />
+            <element signature="e#22585#23943#0" />
+            <element signature="e#23451#23478#0" />
+            <element signature="e#24001#24511#0" />
+            <element signature="e#24590#25145#0" />
+            <element signature="e#24813#25127#0" />
+            <element signature="e#25184#27819#0" />
+            <element signature="e#26242#27258#0" />
+            <element signature="e#26742#27240#0" />
+            <element signature="e#27285#27789#0" />
+            <element signature="e#27845#31818#0" />
+            <element signature="e#27885#29277#0" />
+            <element signature="e#28165#29259#0" />
+            <element signature="e#28274#28445#0" />
+            <element signature="e#28585#28882#0" />
+            <element signature="e#29326#30343#0" />
+            <element signature="e#29773#30120#0" />
+            <element signature="e#29916#30120#0" />
+            <element signature="e#30396#31260#0" />
+            <element signature="e#30439#31243#0" />
+            <element signature="e#30540#30788#0" />
+            <element signature="e#30902#31221#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sample.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="600">
+          <caret line="40" selection-start-line="40" selection-end-line="40" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter_old.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="126">
+          <caret line="182" column="23" selection-start-line="182" selection-start-column="19" selection-end-line="182" selection-end-column="23" />
           <folding>
             <element signature="e#0#29#0" expanded="true" />
-            <element signature="e#5655#6069#0" />
-            <element signature="e#9392#11619#0" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/plotting.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-937">
+          <caret line="72" selection-start-line="72" selection-end-line="72" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/build.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="261">
+          <caret line="139" column="29" lean-forward="true" selection-start-line="139" selection-start-column="29" selection-end-line="139" selection-end-column="29" />
+          <folding>
+            <element signature="e#0#173#0" expanded="true" />
+            <element signature="e#1028#1986#0" />
+            <element signature="e#2727#2775#0" />
+            <element signature="e#4565#4849#0" />
+            <element signature="e#4903#5141#0" />
+            <element signature="e#5196#5621#0" />
+            <element signature="e#5297#5355#0" />
+            <element signature="e#5401#5460#0" />
+            <element signature="e#5709#7392#0" />
+            <element signature="e#5726#5748#0" />
+            <element signature="e#6533#6576#0" />
+            <element signature="e#6664#6734#0" />
+            <element signature="e#6890#7264#0" />
+            <element signature="e#6941#7231#0" />
+            <element signature="e#6981#7194#0" />
+            <element signature="e#7572#9474#0" />
+            <element signature="e#8534#8566#0" />
+            <element signature="e#9057#9150#0" />
+            <element signature="e#9524#9794#0" />
+            <element signature="e#9900#10459#0" />
+            <element signature="e#10127#10459#0" />
+            <element signature="e#10494#13633#0" />
+            <element signature="e#12048#13049#0" />
+            <element signature="e#12540#13032#0" />
+            <element signature="e#13075#13624#0" />
+            <element signature="e#13943#15381#0" />
+            <element signature="e#14044#14308#0" />
+            <element signature="e#14668#14955#0" />
+            <element signature="e#15425#16369#0" />
+            <element signature="e#15856#16218#0" />
+            <element signature="e#15991#16218#0" />
+            <element signature="e#16543#16736#0" />
+            <element signature="e#16832#17119#0" />
+            <element signature="e#17163#17610#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/eu_in_csfapi.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="347">
+          <caret line="99" selection-start-line="99" selection-end-line="99" />
+          <folding>
+            <element signature="e#0#10#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///Volumes/GoogleDrive/My Drive/APS/APS2019c2_2idd/XRF/pyDataProcessing/apsreporter/tableofcontents.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-1311">
+          <caret line="110" column="39" lean-forward="true" selection-start-line="110" selection-start-column="39" selection-end-line="110" selection-end-column="39" />
+          <folding>
+            <element signature="e#0#29#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/apsreporter/tableofcontents.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="454">
+          <caret line="224" column="28" selection-start-line="224" selection-start-column="28" selection-end-line="224" selection-end-column="28" />
         </state>
       </provider>
     </entry>

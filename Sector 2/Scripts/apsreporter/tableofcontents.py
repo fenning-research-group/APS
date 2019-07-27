@@ -1,5 +1,5 @@
 from datetime import datetime
-from tkinter import Tk, IntVar, Checkbutton, Button, mainloop, W
+from tkinter import Tk, IntVar, StringVar,OptionMenu, Checkbutton, Button, mainloop, W,Label
 import h5py
 import numpy as np
 import json
@@ -106,12 +106,14 @@ class tableofcontents:
 		def parsescanlist(scanlist):
 			jscan = {}
 			channels = scanlist._channels
+			ratiochannels = scanlist.ratiochannels()
 			for scan, description in scanlist.scans.items():
 				if description == None:
 					description = ''
 				jscan[scan] = {	
 					'description': description,
 					'channels': channels,
+					'ratiochannels': ratiochannels,
 					'energy': self._energy[scan],
 					'dwell': self._dwell[scan]
 				}
@@ -206,6 +208,8 @@ class scanlist:
 		@property
 		def channels(self):
 			return self._channels
+		def ratiochannels(self):
+			return self._ratiochannels
 		# @channels.setter
 		def setchannels(self, channels = None):
 			if channels:
@@ -217,18 +221,45 @@ class scanlist:
 					# tkinter gui to select channels
 					master = Tk()				
 					max_rows = 5
+					max_col = 0
 					var = []
 					for i, channel in enumerate(channels):
 						colnum = int(np.max([0,np.floor((i-1)/max_rows)]))
 						rownum = int(np.mod(i, max_rows))
 						var.append(IntVar())
 						Checkbutton(master, text=channel, variable=var[i]).grid(row=rownum, column = colnum, sticky=W)
-					Button(master, text = 'Select Channels', command = master.quit()).grid(row = 6, sticky = W)
+						if i==(len(channels)-1):
+							max_col=colnum
+					# Button(master, text = 'Select Channels', command = master.quit()).grid(row = 6, sticky = W)
+
+					# Add the dropdown window for the ratio map operation
+					l = Label(master, text='Ration Map -- Select the Element of Interest')
+					l.grid(row=max_rows + 1, column=0, columnspan=5)
+
+					rownum = max_rows + 2
+					colPerSet = 3
+					max_col = int(np.floor(max_col / 2) * 3)
+					j = 0
+					ratioVar = []
+					while j < max_col:
+						a=StringVar()
+						a.set('none')
+						ratioVar.append(a)
+						OptionMenu(master, a ,*channels).grid(row=rownum, column=j, sticky=W)
+						if j%colPerSet==0:
+							Label(master,text=':').grid(row=rownum,column=j+1)
+							j=j+1
+						j=j+1
+
+
 					mainloop()
 
 					selected_channels = [channels[x] for x in range(len(channels)) if var[x].get() == 1]
+					selchannels = [ratioVar[x].get() for x in range(max_col - 3) if ratioVar[x].get() != 'none']
+					selected_rationch = [[selchannels[2 * x], selchannels[2 * x + 1]] for x in
+										 range(int(len(selchannels) / 2))]
 
-					return selected_channels
+					return selected_channels,selected_rationch
 
 				scanfids = os.listdir(self.datafolder)
 				scanfids = [x for x in scanfids if '2idd_' in x]
@@ -243,7 +274,7 @@ class scanlist:
 					all_channels = data['MAPS']['channel_names'][:].astype('U13').tolist()
 
 				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
-				self._channels = pick_channels(all_channels)
+				self._channels,self._ratiochannels = pick_channels(all_channels)
 
 		def description(self, scan, description):
 			if scan in self._scans:
@@ -282,6 +313,8 @@ class comparison:
 		@property
 		def channels(self):
 			return self._channels
+		def ratiochannels(self):
+			return self._ratiochannels
 		# @channels.setter
 		def setchannels(self):
 			print(self.title)
@@ -292,20 +325,45 @@ class comparison:
 			else:
 				def pick_channels(channels):
 					# tkinter gui to select channels
-					master = Tk()				
+					master = Tk()
 					max_rows = 5
+					max_col = 0
 					var = []
 					for i, channel in enumerate(channels):
-						colnum = int(np.max([0,np.floor((i-1)/max_rows)]))
+						colnum = int(np.max([0, np.floor((i - 1) / max_rows)]))
 						rownum = int(np.mod(i, max_rows))
 						var.append(IntVar())
-						Checkbutton(master, text=channel, variable=var[i]).grid(row=rownum, column = colnum, sticky=W)
-					Button(master, text = 'Select Channels', command = master.quit()).grid(row = 6, sticky = W)
+						Checkbutton(master, text=channel, variable=var[i]).grid(row=rownum, column=colnum, sticky=W)
+						if i == (len(channels) - 1):
+							max_col = colnum
+
+					l = Label(master, text='Ration Map -- Select the Element of Interest')
+					l.grid(row=max_rows + 1, column=0, columnspan=5)
+
+					rownum = max_rows + 2
+					colPerSet = 3
+					max_col = int(np.floor(max_col / 2) * 3)
+					j = 0
+					ratioVar = []
+					while j < max_col:
+						a = StringVar()
+						a.set('none')
+						ratioVar.append(a)
+						OptionMenu(master, a, *channels).grid(row=rownum, column=j, sticky=W)
+						if j % colPerSet == 0:
+							Label(master, text=':').grid(row=rownum, column=j + 1)
+							j = j + 1
+						j = j + 1
+
+					# Button(master, text = 'Select Channels', command = master.quit()).grid(row = 6, sticky = W)
+
 					mainloop()
 
 					selected_channels = [channels[x] for x in range(len(channels)) if var[x].get() == 1]
-
-					return selected_channels
+					selchannels = [ratioVar[x].get() for x in range(max_col - 3) if ratioVar[x].get() != 'none']
+					selected_rationch = [[selchannels[2 * x], selchannels[2 * x + 1]] for x in
+										 range(int(len(selchannels) / 2))]
+					return selected_channels, selected_rationch
 
 				scanfids = os.listdir(self.datafolder)
 				scanfids = [x for x in scanfids if '2idd_' in x]
@@ -320,7 +378,7 @@ class comparison:
 					all_channels = data['MAPS']['channel_names'][:].astype('U13')
 
 				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
-				self._channels = pick_channels(all_channels)
+				self._channels, self._ratiochannels = pick_channels(all_channels)
 
 		# def description(self, scan, description):
 		# 	if scan in self._scans:
