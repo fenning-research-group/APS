@@ -12,7 +12,7 @@ from matplotlib import cm
 from matplotlib_scalebar.scalebar import ScaleBar
 import matplotlib.colors as colors
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,AutoMinorLocator)
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, Frame, FrameBreak, PageTemplate, NextPageTemplate, KeepInFrame
+from reportlab.platypus import SimpleDocTemplate, BaseDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, Frame, FrameBreak, PageTemplate, NextPageTemplate, KeepInFrame
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.rl_config import defaultPageSize
 from reportlab.lib.units import inch
@@ -353,8 +353,12 @@ class build:
 			self.tableofcontents = json.load(f)
 		self.outputfolder = outputfolder
 		f = os.path.join(outputfolder, title)
-		self.doc = SimpleDocTemplate(f,
-			showBoundary = boundaries)
+		self.doc = BaseDocTemplate(f,
+			showBoundary = boundaries,
+			leftMargin = inch/2,
+			rightMargin = inch/2,
+			bottomMargin = inch/2,
+			topMargin = inch/2)
 		self.Story = []
 		self.title = title
 
@@ -534,7 +538,7 @@ class build:
 		high = float(scandat['energy']) + 0.5 #high energy plotting cutoff, keV
 
 		# generate and save plot
-		plt.figure(figsize = (8,2.5))
+		plt.figure(figsize = (8,3.2))
 		plt.plot(
 			xrf[(xrf[:,0]>=low) & (xrf[:,0]<=high),0],
 			xrf[(xrf[:,0]>=low) & (xrf[:,0]<=high),1],
@@ -543,7 +547,7 @@ class build:
 		ax = plt.gca()
 		plt.yscale('log')
 		plt.xlabel('Energy (keV)')
-		plt.ylabel('Counts')
+		plt.ylabel('Counts (log)')
 		ax.autoscale(enable = True, tight = True)
 		plt.gca().xaxis.set_major_locator(MultipleLocator(1))
 		plt.gca().xaxis.set_minor_locator(MultipleLocator(0.2))
@@ -574,6 +578,39 @@ class build:
 
 		image_format = 'jpeg'
 		savepath = os.path.join(savefolder, 'integrated.' + image_format)
+		
+		plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
+		plt.close() 
+
+		return savepath
+
+	def plotcorrmat(self, scan, scandat):
+		#build correlation matrix
+		channels = list(scandat['xrf'].keys())
+		flatdata = [item for sublist in scandat['xrf'][channels[0]] for item in sublist]	#flatten list of lists to 1d list
+		# flatdata = scandat['xrf'][channels[0]].flatten()
+		for key in channels[1:]:
+			newflatdata = [item for sublist in scandat['xrf'][key] for item in sublist]		#flatten list of lists to 1d list
+
+			flatdata = np.vstack((flatdata, newflatdata))
+
+		corrmat = np.corrcoef(flatdata)
+
+		# generate and save plot
+		fig, ax = plt.subplots()
+		im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'))
+		ax.set_xticks(np.arange(len(channels)))
+		ax.set_yticks(np.arange(len(channels)))
+		ax.set_xticklabels(channels)
+		ax.set_yticklabels(channels)
+		ax.tick_params(axis = 'both', which = 'major', labelsize = 14)
+		
+		savefolder = os.path.join(self.outputfolder, str(scan))
+		if not os.path.exists(savefolder):
+			os.mkdir(savefolder)
+
+		image_format = 'jpeg'
+		savepath = os.path.join(savefolder, 'correlationmatrix.' + image_format)
 		
 		plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
 		plt.close() 
@@ -712,7 +749,7 @@ class build:
 
 			return imtable
 
-		def build_scan_page(doc, Story, scan_number, title, text, overviewmap_image_filepath, scan_params, scan_image_filepaths):
+		def build_scan_page(doc, Story, scan_number, title, text, overviewmap_image_filepath, scan_params, scan_image_filepaths, integratedspectrum_image_filepath, corrmat_image_filepath):
 			### text section
 			headerstr = 'Scan ' + str(scan_number) + ': ' + title
 
@@ -725,18 +762,30 @@ class build:
 
 			Story.append(Paragraph(headerstr, styles['Heading1']))
 			for each in subheaderstr:
-				Story.append(Paragraph(each, styles['Heading3']))  
+				Story.append(Paragraph(each, styles['Normal']))  
 			Story.append(Paragraph(text, styles['Normal']))
 			# Story.append(PageBreak())
 			Story.append(FrameBreak())
 			### overview map section
 
-			imoverview = ScaledImage(overviewmap_image_filepath, 'width', doc.width * 0.45)
+
+			_, hlim = get_frame_dimensions(doc, 'ScanPage', 'overviewmapframe')
+			imoverview = ScaledImage(overviewmap_image_filepath, 'height', hlim)
 			Story.append(imoverview)
 			Story.append(FrameBreak())
 			# Story.append(PageBreak())
 
 			###integrated xrf spectrum
+			wlim, hlim = get_frame_dimensions(doc, 'ScanPage', 'intspecframe')
+			imintspectrum = ScaledImage(integratedspectrum_image_filepath, 'width', wlim)
+			Story.append(imintspectrum)
+			Story.append(FrameBreak())			
+
+			### correlation matrix
+			wlim, hlim = get_frame_dimensions(doc, 'ScanPage', 'corrmatframe')
+			imcorrmat = ScaledImage(corrmat_image_filepath, 'height', hlim)
+			Story.append(imcorrmat)
+			Story.append(FrameBreak())
 
 			# imspectrum = ScaledImage(integratedspectrum_image_filepath, 'width', doc.width * 0.45)
 			### xrf maps section
@@ -744,11 +793,14 @@ class build:
 			# width = frame._aW
 			# height = frame.aH
 
+			wlim, hlim = get_frame_dimensions(doc, 'ScanPage', 'xrfframe')
 			imtable = generate_image_matrix(scan_image_filepaths,
 				max_num_cols = 4,
-				max_width = doc.width + doc.leftMargin,
-				max_height = doc.height * 0.62)
+				max_width = wlim,
+				max_height = hlim)
 			Story.append(imtable)
+
+
 			# Story.append(PageBreak())
 
 			return Story
@@ -788,7 +840,15 @@ class build:
 
 			return(Story)
 
-		def go(doc, Story, outputpath):
+		def get_frame_dimensions(doc, pageid, frameid):
+			margin = 0.85
+			page = [x for x in doc.pageTemplates if x.id == pageid]
+			frame = [x for x in page[0].frames if x.id == frameid]
+			width = frame[0].width * margin
+			height = frame[0].height * margin
+			return width, height
+
+		def buildPageTemplates(doc, Story):
 			## title page template
 
 			titleframe = Frame(
@@ -806,8 +866,10 @@ class build:
 				)
 
 			## scan page template
-			text_width = doc.width * 0.5
-			text_height = doc.height * 0.35
+			text_width = doc.width * 0.7
+			text_height = doc.height * 0.15
+			intspec_height = doc.height * 0.2
+			intspec_width = doc.width * 0.7
 
 			textframe = Frame(
 				x1 = doc.leftMargin,
@@ -816,16 +878,28 @@ class build:
 				height = text_height,
 				id = 'textframe')
 			overviewmapframe = Frame(
-				x1 = doc.leftMargin + doc.width * 0.5,
+				x1 = doc.leftMargin + text_width,
 				y1 = PAGE_HEIGHT - doc.topMargin - text_height, 
 				width = doc.width - text_width,
 				height = text_height,
 				id = 'overviewmapframe')
+			intspecframe = Frame(
+				x1 = doc.leftMargin ,
+				y1 = PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
+				width = intspec_width,
+				height = intspec_height,
+				id = 'intspecframe')
+			corrmatframe = Frame(
+				x1 = doc.leftMargin + intspec_width,
+				y1 = PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
+				width = doc.width - intspec_width,
+				height = intspec_height,
+				id = 'corrmatframe')
 			xrfframe = Frame(
 				x1 = doc.leftMargin * 0.5,
-				y1 = doc.bottomMargin * 0.8, 
+				y1 = doc.bottomMargin, 
 				width = doc.width + doc.leftMargin,
-				height = doc.height - text_height,
+				height = doc.height - text_height - intspec_height,
 				id = 'xrfframe')
 
 			## 2-scan comparison page template
@@ -864,13 +938,12 @@ class build:
 
 			doc.addPageTemplates([
 								 PageTemplate(id='TitlePage',frames=[titleframe,subtitleframe], onPage = FirstPage),
-								 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,xrfframe], onPage = myLaterPages),
+								 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,intspecframe,corrmatframe,xrfframe], onPage = myLaterPages),
 								 PageTemplate(id='Comparison_2',frames=makecomparisontemplate(2), onPage = myLaterPages),
 								 PageTemplate(id='Comparison_3',frames=makecomparisontemplate(3), onPage = myLaterPages),
 								 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = myLaterPages)
 								 ]
 								)
-			doc.build(Story)
 
 		def report(self):
 
@@ -898,6 +971,8 @@ class build:
 
 					overviewpath = self.plotoverview(scan, scandat)
 					integratedspectrumpath = self.plotintegratedxrf(scan, vals)
+					corrmatpath = self.plotcorrmat(scan, vals)
+
 
 					scan_params = {'x_range': int(max(vals['x']) - min(vals['x'])),
 								   'y_range': int(max(vals['y']) - min(vals['y'])),
@@ -916,6 +991,8 @@ class build:
 						scan_params = scan_params,
 						overviewmap_image_filepath = overviewpath, 
 						scan_image_filepaths = impaths,
+						integratedspectrum_image_filepath = integratedspectrumpath,
+						corrmat_image_filepath = corrmatpath
 						)
 
 				return story
@@ -992,6 +1069,7 @@ class build:
 			if not os.path.exists(self.outputfolder):
 				os.mkdir(self.outputfolder)
 
+			buildPageTemplates(self.doc, self.Story)
 
 			self.Story = build_title_page(
 				doc = self.doc,
@@ -1004,7 +1082,8 @@ class build:
 				self.Story = writesection(self.Story, section, contents)
 
 			outputpath = os.path.join(self.outputfolder, self.title)
-			go(self.doc, self.Story, outputpath)
+			
+			self.doc.build(self.Story)
 
 			import subprocess
 			subprocess.Popen(outputpath ,shell=True)
