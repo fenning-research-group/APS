@@ -319,6 +319,7 @@ class comparison:
 		def ratiochannels(self):
 			return self._ratiochannels
 		# @channels.setter
+
 		def setchannels(self,channels = None):
 			print(self.title)
 			if channels:
