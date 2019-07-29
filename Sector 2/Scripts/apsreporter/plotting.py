@@ -169,14 +169,14 @@ def plotintegratedxrf(outputfolder, scan, scandat):
 
 	elements = []
 	for channel in list(scandat['xrf'].keys()):
-		if (':' not in channel) and (channel is not 'XBIC'):	#skip the ratio maps
+		if (':' not in channel) and (channel is not 'XBIC'):	#skip the ratio maps and XBIC channel
 			elements.append(channel.split('_')[0])	#exclude the emission line if present (ie I_L -> I)
 
 	trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
 	step = 0.05
 
 	for idx, element in enumerate(elements):
-		color = cm.get_cmap('Set1')(idx)
+		color = cm.get_cmap('tab10')(idx)
 		ax.text(0.01, 0.98 - 0.08*idx, element,
 			fontname = 'Verdana', 
 			fontsize = 12,

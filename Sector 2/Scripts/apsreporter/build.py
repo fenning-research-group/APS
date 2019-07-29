@@ -472,7 +472,10 @@ class build:
 							 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,intspecframe,corrmatframe,xrfframe], onPage = self.myLaterPages),
 							 PageTemplate(id='Comparison_2',frames=makecomparisontemplate(2), onPage = self.myLaterPages),
 							 PageTemplate(id='Comparison_3',frames=makecomparisontemplate(3), onPage = self.myLaterPages),
-							 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = self.myLaterPages)
+							 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = self.myLaterPages),
+							 PageTemplate(id='Comparison_5',frames=makecomparisontemplate(5), onPage = self.myLaterPages),
+							 PageTemplate(id='Comparison_6',frames=makecomparisontemplate(6), onPage = self.myLaterPages),
+							 PageTemplate(id='Comparison_7',frames=makecomparisontemplate(7), onPage = self.myLaterPages)
 							 ]
 							)
 
