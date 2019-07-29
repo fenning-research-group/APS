@@ -106,7 +106,7 @@ class tableofcontents:
 		def parsescanlist(scanlist):
 			jscan = {}
 			channels = scanlist._channels
-			ratiochannels = scanlist.ratiochannels()
+			ratiochannels = scanlist._ratiochannels
 			for scan, description in scanlist.scans.items():
 				if description == None:
 					description = ''
@@ -165,6 +165,7 @@ class tableofcontents:
 		j['Contents'] = parsesection(self._contents)
 		writestr = json.dumps(j)
 
+		
 		with open(self.outputfile, 'w') as f:
 			f.write(writestr)
 			f.close()
@@ -210,12 +211,16 @@ class scanlist:
 		@property
 		def channels(self):
 			return self._channels
+		@property
 		def ratiochannels(self):
 			return self._ratiochannels
 		# @channels.setter
-		def setchannels(self, channels = None):
-			if channels:
-				self._channels = channels
+		def setchannels(self, channels = None, ratiochannels = None):
+			if channels or ratiochannels:
+				if channels:
+					self._channels = channels
+				if ratiochannels:
+					self._ratiochannels = ratiochannels
 			elif len(self._scans) == 0:
 				raise ValueError('No scans assigned to this scan list: set first using .scans = [scan list here]')
 			else:
@@ -279,6 +284,8 @@ class scanlist:
 				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
 				self._channels,self._ratiochannels = pick_channels(all_channels)
 
+			return self._channels, self._ratiochannels
+
 		def description(self, scan, description):
 			if scan in self._scans:
 				self._scans[scan] = description
@@ -316,14 +323,19 @@ class comparison:
 		@property
 		def channels(self):
 			return self._channels
+
+		@property
 		def ratiochannels(self):
 			return self._ratiochannels
 		# @channels.setter
 
-		def setchannels(self,channels = None):
+		def setchannels(self,channels = None, ratiochannels = None):
 			print(self.title)
-			if channels:
-				self._channels = channels
+			if channels or ratiochannels:
+				if channels:
+					self._channels = channels
+				if ratiochannels:
+					self._ratiochannels = ratiochannels
 			elif len(self._scans) == 0:
 				raise ValueError('No scans assigned to this comparison list')
 			else:
@@ -385,6 +397,7 @@ class comparison:
 				all_channels.append('XBIC')	#this option links to the downstream ion chamber scaler, typically used for recording XBIC current
 				self._channels, self._ratiochannels = pick_channels(all_channels)
 
+			return self._channels, self._ratiochannels
 		# def description(self, scan, description):
 		# 	if scan in self._scans:
 		# 		self._scans[scan] = description
