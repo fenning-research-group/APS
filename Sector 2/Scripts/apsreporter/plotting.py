@@ -169,7 +169,7 @@ def plotintegratedxrf(outputfolder, scan, scandat):
 
 	elements = []
 	for channel in list(scandat['xrf'].keys()):
-		if ':' not in channel:	#skip the ratio maps
+		if (':' not in channel) and (channel is not 'XBIC'):	#skip the ratio maps
 			elements.append(channel.split('_')[0])	#exclude the emission line if present (ie I_L -> I)
 
 	trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
