@@ -25,7 +25,7 @@ class build:
 		self.PAGE_HEIGHT = defaultPageSize[1]
 		self.PAGE_WIDTH = defaultPageSize[0]
 		self.styles = getSampleStyleSheet()
-		self.styles.add(ParagraphStyle(name='CenterTitle', fontSize = 24, alignment=TA_CENTER))
+		self.styles.add(ParagraphStyle(name='CenterTitle', fontSize = 24, alignment=TA_CENTER, leading = 24))
 		self.styles.add(ParagraphStyle(name='CenterSubtitle', fontSize = 16, alignment=TA_CENTER, leading = 16))
 		self.pageInfo = pageinfo
 		self.title = title
@@ -108,6 +108,7 @@ class build:
 
 					#build dict with x, y, and xrf data for all scans
 					scandat[int(scan_num)] = {
+						'title': scanlist[scan_num]['title'],
 						'description': scanlist[scan_num]['description'],
 						'x': x_data,
 						'y': y_data,
@@ -303,7 +304,9 @@ class build:
 	def build_title_page(self, title, subtitle):
 		self.Story.append(Paragraph(title, self.styles['CenterTitle']))
 		self.Story.append(FrameBreak())
+		self.Story.append(Spacer(1, 0.25*inch))
 		self.Story.append(Paragraph(subtitle, self.styles['CenterSubtitle']))
+		self.Story.append(Spacer(1, 0.25*inch))
 		self.Story.append(Paragraph(datetime.today().strftime('%Y-%m-%d'), self.styles['CenterSubtitle']))
 		# self.Story.append(PageBreak())
 
@@ -523,7 +526,7 @@ class build:
 			self.Story.append(PageBreak())
 			self.build_scan_page(
 				scan_number = scan,
-				title = 'Scan ' + str(scan),
+				title = vals['title'],
 				text = vals['description'], 
 				scan_params = scan_params,
 				overviewmap_image_filepath = overviewpath, 
@@ -570,7 +573,7 @@ class build:
 	def writesection(self, section, contents):
 		for key, content in contents.items():
 			if key == 'scans':
-				self.writescanlist(content)
+				self.writescanlist(scanlist = content)
 			elif key == 'description':
 				print('***TitlePage***')
 				self.Story.append(NextPageTemplate('TitlePage'))

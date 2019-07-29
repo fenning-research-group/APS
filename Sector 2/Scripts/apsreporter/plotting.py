@@ -79,6 +79,7 @@ def plotxrf(outputfolder, scan, channel, x, y, xrf, overwrite = True, logscale =
 			verticalalignment = 'top')    
 
 		ax.add_artist(scalebar)
+		plt.axis('equal')
 		plt.axis('off')
 		plt.gca().set_position([0, 0, 1, 1])
 		plt.savefig(savepath, format=image_format, dpi=300)
@@ -124,6 +125,7 @@ def plotoverview(outputfolder, scan, scandat):
 		color_counter = color_counter + 1
 	ax.autoscale(enable = True)
 	plt.tight_layout()
+	plt.axis('equal')
 	
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):
@@ -209,9 +211,9 @@ def plotcorrmat(outputfolder, scan, scandat):
 	im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'))
 	ax.set_xticks(np.arange(len(channels)))
 	ax.set_yticks(np.arange(len(channels)))
-	ax.set_xticklabels(channels)
+	ax.set_xticklabels(channels, rotation = 45)
 	ax.set_yticklabels(channels)
-	ax.tick_params(axis = 'both', which = 'major', labelsize = 14)
+	ax.tick_params(axis = 'both', bottom = True, top = False, labelbottom = True, labeltop = False, which = 'major', labelsize = 14)
 	
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):

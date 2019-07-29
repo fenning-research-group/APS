@@ -103,14 +103,18 @@ class tableofcontents:
 
 	def export(self):
 
-		def parsescanlist(scanlist):
-			jscan = {}
+		def parsescanlist(scanlist, title, current = None):
+			if current:
+				jscan = current
+			else:
+				jscan = {}
 			channels = scanlist._channels
 			ratiochannels = scanlist._ratiochannels
 			for scan, description in scanlist.scans.items():
 				if description == None:
 					description = ''
 				jscan[scan] = {	
+					'title': title,
 					'description': description,
 					'channels': channels,
 					'ratiochannels': ratiochannels,
@@ -131,6 +135,7 @@ class tableofcontents:
 				if description == None:
 					description = ''
 				jscan[scan] = {
+					'title': comparison.title,
 					'description': description,
 					'ratiochannels': comparison._ratiochannels,
 					'energy': self._energy[scan],
@@ -151,7 +156,10 @@ class tableofcontents:
 						}
 				# elif type(content) is 'scanlist':
 				if isinstance(cont, scanlist):
-					jsection['scans'] = parsescanlist(cont)
+					if 'scans' in jsection.keys():
+						jsection['scans'] = parsescanlist(scanlist = cont, title = sec, current = jsection['scans'])
+					else:
+						jsection['scans'] = parsescanlist(scanlist = cont, title = sec, current = None)
 				if isinstance(cont, comparison):
 					jsection['comparison'] = parsecomparison(cont)
 
@@ -198,6 +206,8 @@ class scanlist:
 				self._scans = scans
 			else:
 				self._scans = {scan:None for scan in scans}
+			self._channels = []
+			self._ratiochannels = []
 			# self.descriptions = [None] * len(_scans)
 
 
@@ -267,7 +277,8 @@ class scanlist:
 					selected_rationch = [[selchannels[2 * x], selchannels[2 * x + 1]] for x in
 										 range(int(len(selchannels) / 2))]
 
-					return selected_channels,selected_rationch
+					print(selected_rationch)
+					return selected_channels, selected_rationch
 
 				scanfids = os.listdir(self.datafolder)
 				scanfids = [x for x in scanfids if '2idd_' in x]
@@ -309,6 +320,8 @@ class comparison:
 				self._scans = scans
 			else:
 				self._scans = {scan:None for scan in scans}
+			self._channels = []
+			self._ratiochannels = []
 				# self._comparisons = {comparison:filler for comparison in comparisons}
 			# self.descriptions = [None] * len(_scans)
 
