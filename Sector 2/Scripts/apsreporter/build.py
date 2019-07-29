@@ -16,7 +16,7 @@ import h5py
 import numpy as np
 from .plotting import truncate_colormap, plotxrf, plotoverview, plotintegratedxrf, plotcorrmat
 
-
+ROOT_DIR = os.path.dirname(__file__)
 
 class build:
 
@@ -125,7 +125,7 @@ class build:
 	def FirstPage(self, canvas, doc):
 		doc = self.doc
 		canvas.saveState()
-		frg_logo = 'C:\\Users\\RishiKumar\\Documents\\GitHub\\APS\\Sector 2\\Scripts\\Untitled.png'
+		frg_logo = os.path.join(ROOT_DIR, 'soleil_logo.png')
 		im = pilImage.open(frg_logo)
 		imwidth, imheight = im.size
 		logowidth = doc.width * 0.9
