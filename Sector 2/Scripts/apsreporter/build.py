@@ -20,13 +20,14 @@ ROOT_DIR = os.path.dirname(__file__)
 
 class build:
 
-	def __init__(self, tableofcontents, outputfolder, title, boundaries = False, pageinfo = "2-ID-D, July 2019", fontname = 'Open Sans', titlefontsize = 16, bodyfontsize = 9, logscale = False, overwrite = True):
+	def __init__(self, tableofcontents, outputfolder, title, author, boundaries = False, pageinfo = "2-ID-D, July 2019", fontname = 'Open Sans', titlefontsize = 16, bodyfontsize = 9, logscale = False, overwrite = True):
 		pdfmetrics.registerFont(TTFont(fontname, 'Vera.ttf'))
 		self.PAGE_HEIGHT = defaultPageSize[1]
 		self.PAGE_WIDTH = defaultPageSize[0]
 		self.styles = getSampleStyleSheet()
-		self.styles.add(ParagraphStyle(name='CenterTitle', fontSize = 24, alignment=TA_CENTER, leading = 24))
-		self.styles.add(ParagraphStyle(name='CenterSubtitle', fontSize = 16, alignment=TA_CENTER, leading = 16))
+		self.styles.add(ParagraphStyle(name='CenterTitle', fontSize = 24, alignment=TA_CENTER, leading = 30))
+		self.styles.add(ParagraphStyle(name='CenterSubtitle', fontSize = 16, alignment=TA_CENTER, leading = 18))
+		self.author = author
 		self.pageInfo = pageinfo
 		self.title = title
 		self.pageinfo = pageinfo
@@ -46,7 +47,8 @@ class build:
 			leftMargin = inch/2,
 			rightMargin = inch/2,
 			bottomMargin = inch/2,
-			topMargin = inch/2)
+			topMargin = inch/2
+			)
 		self.Story = []
 
 	def readscans(self, scanlist):		
@@ -77,8 +79,8 @@ class build:
 		# with h5py.File(f, 'r') as dat:
 		#     energy = dat['MAPS']['energy'][:]
 		scans = list(scanlist.keys())
-		channels = scanlist[scans[0]]['channels']
-		ratiochannels = scanlist[scans[0]]['ratiochannels']
+		# channels = scanlist[scans[0]]['channels']
+		# ratiochannels = scanlist[scans[0]]['ratiochannels']
 
 		files = os.listdir(self.tableofcontents['DataFolder'])
 		scandat = {}
@@ -87,6 +89,8 @@ class build:
 				scan_num = str(int(filename[5:9]))
 
 				if scan_num in scans:
+					channels = scanlist[scan_num]['channels']
+					ratiochannels = scanlist[scan_num]['ratiochannels']
 					f = os.path.join(self.tableofcontents['DataFolder'], filename)
 					x_data, y_data, xrf_data, all_channels, summed_xrf = read_2idd_h5(f)
 
@@ -96,7 +100,6 @@ class build:
 						if channel in channels:
 							npxrf =  np.array(xrf)
 							xrfdat[channel] = npxrf[:,:-2] #remove last two lines, dead from flyscan
-
 					#get the elemental ratio maps
 					for ratioch in ratiochannels:
 						elm1xrf = np.array(xrf_data[all_channels.index(ratioch[0])])[:,:-2]
@@ -271,20 +274,20 @@ class build:
 
 
 		_, hlim = self.get_frame_dimensions('ScanPage', 'overviewmapframe')
-		imoverview = self.ScaledImage(overviewmap_image_filepath, 'height', hlim)
+		imoverview = self.ScaledImage(overviewmap_image_filepath, 'height', hlim*0.9)
 		self.Story.append(imoverview)
 		self.Story.append(FrameBreak())
 		# self.Story.append(PageBreak())
 
 		###integrated xrf spectrum
 		wlim, hlim = self.get_frame_dimensions('ScanPage', 'intspecframe')
-		imintspectrum = self.ScaledImage(integratedspectrum_image_filepath, 'width', wlim*0.9)
+		imintspectrum = self.ScaledImage(integratedspectrum_image_filepath, 'width', wlim*0.8)
 		self.Story.append(imintspectrum)
 		self.Story.append(FrameBreak())			
 
 		### correlation matrix
 		wlim, hlim = self.get_frame_dimensions('ScanPage', 'corrmatframe')
-		imcorrmat = self.ScaledImage(corrmat_image_filepath, 'height', hlim)
+		imcorrmat = self.ScaledImage(corrmat_image_filepath, 'width', wlim)
 		self.Story.append(imcorrmat)
 		self.Story.append(FrameBreak())
 
@@ -307,6 +310,7 @@ class build:
 		self.Story.append(Spacer(1, 0.25*inch))
 		self.Story.append(Paragraph(subtitle, self.styles['CenterSubtitle']))
 		self.Story.append(Spacer(1, 0.25*inch))
+		self.Story.append(Paragraph(self.author, self.styles['CenterSubtitle']))
 		self.Story.append(Paragraph(datetime.today().strftime('%Y-%m-%d'), self.styles['CenterSubtitle']))
 		# self.Story.append(PageBreak())
 
@@ -355,7 +359,7 @@ class build:
 
 		subtitleframe = Frame(
 			x1 = doc.leftMargin,
-			y1 = doc.height/2 -doc.topMargin,
+			y1 = doc.height/2 - 3*doc.topMargin,
 			width = doc.width,
 			height = doc.height * 0.4,
 			leftPadding = 0,

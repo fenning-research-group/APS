@@ -54,7 +54,8 @@ def plotxrf(outputfolder, scan, channel, x, y, xrf, overwrite = True, logscale =
 			interpolation = 'none',
 			vmin = vmin,
 			vmax = vmax,
-			norm = colors.LogNorm())
+			norm = colors.LogNorm(),
+			origin = 'lower')
 
 		## text + scalebar objects
 		opacity = 1
@@ -130,14 +131,15 @@ def plotoverview(outputfolder, scan, scandat):
 	ax.autoscale(enable = True)
 	plt.tight_layout()
 	plt.axis('equal')
-	
+	ax.title.set_text('Map Location Overview (um)')
+
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):
 		os.mkdir(savefolder)
 
 	image_format = 'jpeg'
 	savepath = os.path.join(savefolder, 'overviewmap.' + image_format)
-	plt.savefig(savepath, format=image_format, dpi=300)
+	plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
 	plt.close() 
 
 	return savepath
@@ -162,6 +164,7 @@ def plotintegratedxrf(outputfolder, scan, scandat):
 	plt.gca().xaxis.set_major_locator(MultipleLocator(1))
 	plt.gca().xaxis.set_minor_locator(MultipleLocator(0.2))
 	plt.grid(True)		
+	ax.title.set_text('Integrated XRF Spectrum')
 
 	# add tick marks for elements
 	with open(os.path.join(ROOT_DIR, 'xrflines.json'), 'r') as f:
@@ -220,14 +223,22 @@ def plotcorrmat(outputfolder, scan, scandat):
 
 	corrmat = np.corrcoef(flatdata)
 	# generate and save plot
-	fig, ax = plt.subplots()
-	im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'))
+	fig, ax = plt.subplots(figsize = (3,3))
+	im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'), vmin = -1, vmax = 1)
 	ax.set_xticks(np.arange(len(channels)))
 	ax.set_yticks(np.arange(len(channels)))
 	ax.set_xticklabels(channels, rotation = 45)
 	ax.set_yticklabels(channels)
-	ax.tick_params(axis = 'both', bottom = True, top = False, labelbottom = True, labeltop = False, which = 'major', labelsize = 14)
-	
+	ax.tick_params(axis = 'both', bottom = True, top = False, labelbottom = True, labeltop = False, which = 'major', labelsize = 10)
+	ax.title.set_text('Correlation Matrix')
+
+	cbar = fig.colorbar(im,
+		ax = ax,
+		shrink = 0.8,
+		aspect = 30)
+	cbar.set_label('Correlation Coefficient')
+	cbar.ax.tick_params(labelsize = 8)
+
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):
 		os.mkdir(savefolder)
