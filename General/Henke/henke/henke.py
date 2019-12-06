@@ -5,6 +5,7 @@ import csv
 
 
 packageDir = os.path.dirname(os.path.abspath(__file__))
+
 def ScatteringFactor(element, energy):
 	dataDir = os.path.join(packageDir, 'include', 'scatfacts')
 #     dataElements = [x[:-4] for x in os.listdir(dataDir)]
