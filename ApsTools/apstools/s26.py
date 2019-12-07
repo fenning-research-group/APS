@@ -8,8 +8,47 @@ import cv2
 from tqdm import tqdm
 import time
 import json
+### scripts for working with H5 Files
+
+def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
+	"""
+	Plots maps of diffraction across map area
+	"""
+	colors = [plt.cm.Reds, plt.cm.Blues, plt.cm.Greens, plt.cm.Purples, plt.cm.Oranges]
+
+	if ax is None:
+		fig, ax = plt.subplots()
+		displayPlot = True
+	else:
+		displayPlot = False
+
+	if twotheta is not None:
+		x = 'twotheta'
+		xdata = twotheta
+		xlabel = '$\degree$'
+	elif qmat is not None:
+		x = 'q'
+		xdata = q
+		xlabel = ' $A^{-1}$'
+	else:
+		print('Error: Provide either twotheta or q values!')
+		return
+
+	with h5py.File(fpath, 'r') as d:
+		x0 = d['xrd']['pat'][x][()]
+		diffmap = d['xrd']['pat']['cts'][()]
+
+	# plot results
+	alpha = 1/len(xdata)
+	for i_, x_, c_ in zip(range(len(xdata)),xdata[::-1], colors):
+		idx = np.argmin(np.abs(x0 - x_))
+		ax.imshow(diffmap[:,:,idx-tol:idx+tol].sum(axis = 2), alpha = alpha, cmap = c_)
+		ax.text(1.01, 0.99 - 0.05*i_, '{0}{1}'.format(x_, xlabel), color = c_(180), ha = 'left', va = 'top', transform = ax.transAxes)
+	if displayPlot:
+		plt.show()
 
 
+	
 
 ### H5 processing scripts
 
@@ -181,7 +220,7 @@ class H5Daemon():
 			self.imageDirectory,
 			os.path.join(self.qmatDirectory, 'twotheta.csv'),
 			os.path.join(self.qmatDirectory, 'gamma.csv'),
-			self.loadimages = True
+			loadimages = True
 			)
 
 
@@ -201,7 +240,7 @@ class H5Daemon():
 		self.lastProcessedScan = 0
 		while True:	#keep running unless manually quit by ctrl-c
 			mostRecentScan = findMostRecentScan()	#get most recent scan number
-			if self.lastProcessedScan < findMostRecentScan #have we looked at this scan yet?
+			if self.lastProcessedScan < findMostRecentScan: #have we looked at this scan yet?
 				scanFunction = lookupScanFunction(mostRecentScan)	#if not, lets see if its a scan we want to convert to an h5 file
 				if scanFunction in functions:	#if it is one of our target scan types (currently only works on scan2d as of 20191206)
 					if epics.caget("26idc:filter:Fi1:Set") == 0:	#make sure that the scan has completed (currently using filter one being closed as indicator of completed scan)
