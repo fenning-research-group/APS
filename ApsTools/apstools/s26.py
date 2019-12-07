@@ -6,12 +6,19 @@ import os
 import multiprocessing as mp
 import cv2 
 from tqdm import tqdm
+import time
+import json
+
+
+
+### H5 processing scripts
 
 def generate_energy_list(cal_offset = -0.0151744, cal_slope = 0.0103725, cal_quad = 0.00000):
         energy = [cal_offset + cal_slope*x + cal_quad*x*x for x in range(2048)]
         return energy
 
-def LoadMDA(scannum, mdadirectory, imagedirectory, only3d = False):     
+def LoadMDA(scannum, mdadirectory, imagedirectory, only3d = False):   
+	print('Reading MDA File')  
 	for f in os.listdir(mdadirectory):
 			if int(f.split('SOFT_')[1][:-4]) == scannum:
 					mdapath = os.path.join(mdadirectory, f)
@@ -68,7 +75,7 @@ def LoadMDA(scannum, mdadirectory, imagedirectory, only3d = False):
 
 	return output
 
-def _MDADataToH5(data, h5directory, Image_folder, loadimages = True):
+def _MDADataToH5(data, h5directory, Image_folder, twothetaccdpath, gammaccdpath, loadimages = True):
 	p = mp.Pool(mp.cpu_count())
 	# p = mp.Pool(4)
 	filepath = os.path.join(h5directory, 'scan_{0}.hdf5'.format(data['scan']))
@@ -104,13 +111,14 @@ def _MDADataToH5(data, h5directory, Image_folder, loadimages = True):
 			intxrfcounts = xrf.create_dataset('intcts', data = np.sum(np.sum(xrfcounts, axis = 1), axis = 1))
 			intxrfcounts.attrs['description'] = 'Array of area-integrated fluorescence counts for each detector'
 			
+			f.flush()	# write xrf data to disk
+
 			if loadimages:
 					numpts = 200
-					twothetaimage = dimages.create_dataset('twotheta', data = np.genfromtxt('D:\APS Data\\2019c2_26\Data\Analysis\qmat\\twotheta.csv', delimiter=','))
+					twothetaimage = dimages.create_dataset('twotheta', data = np.genfromtxt(twothetaccdpath, delimiter=','))
 					twothetaimage.attrs['description'] = 'Map correlating two-theta values to each pixel on diffraction ccd'
-					temp = dimages.create_dataset('gamma', data = np.genfromtxt('D:\APS Data\\2019c2_26\Data\Analysis\qmat\\gamma.csv', delimiter=','))
+					temp = dimages.create_dataset('gamma', data = np.genfromtxt(gammaccdpath, delimiter=','))
 					temp.attrs['description'] = 'Map correlating gamma values to each pixel on diffraction ccd'
-
 					tolerance = (twothetaimage[:].max()-twothetaimage[:].min()) / numpts
 					interp_twotheta = dpatterns.create_dataset('twotheta', data = np.linspace(twothetaimage[:].min()+tolerance/2, twothetaimage[:].max()-tolerance/2, numpts))
 					interp_twotheta.attrs['description'] = 'Twotheta values onto which ccd pixel intensities are collapsed.'
@@ -128,14 +136,15 @@ def _MDADataToH5(data, h5directory, Image_folder, loadimages = True):
 					images = dimages.create_dataset('ccd', data = imgdata, compression = 'gzip', chunks = True)
 					print('Fitting twotheta')
 
-					# ttmask = [twothetaimage - tt_ <= tolerance for tt_ in int]
+					f.flush()
+					ttmask = [np.abs(twothetaimage - tt_) <= tolerance for tt_ in interp_twotheta]
 
 					for m,n in tqdm(np.ndindex(imnums.shape), total = imnums.shape[0] * imnums.shape[1]):
 						# for tidx, tt in enumerate(interp_twotheta):
 							# im = imgdata[m,n]
 							# xrdcounts[m,n,tidx] = np.sum(im[np.abs(twothetaimage[:]-tt) <= tolerance])	#add diffraction from all points where twotheta falls within tolerance
-						xrdcounts[m,n] = p.starmap(fitTwoThetaFromCCD, [(tt_, twothetaimage[()], imgdata[m,n], tolerance) for tt_ in interp_twotheta])
-						intxrdcounts = intxrdcounts + xrdcounts[m,n]
+						xrdcounts[m,n] = p.starmap(np.sum, [(imgdata[m,n][ttmask_],) for ttmask_ in ttmask])
+					intxrdcounts[()] = xrdcounts[()].sum(axis=0).sum(axis=0)	#sum across map dimensions
 
 					# images = None
 					# for m, n in np.ndindex(imnums.shape):
@@ -149,11 +158,7 @@ def _MDADataToH5(data, h5directory, Image_folder, loadimages = True):
 					#         for tidx, tt in enumerate(interp_twotheta):
 					#                 xrdcounts[m,n,tidx] = np.sum(im[np.abs(twothetaimage[:]-tt) <= tolerance])
 					#                 intxrdcounts = intxrdcounts + xrdcounts[m,n,tidx]
-
-def fitTwoThetaFromCCD(tt, twothetaimage, im, tolerance):
-	return np.sum(im[np.abs(twothetaimage - tt) <= tolerance])
-
-### H5 processing daemon
+	p.close()
 
 class H5Daemon():
 	def __init__(self, rootdirectory):
@@ -167,10 +172,41 @@ class H5Daemon():
 		self.qmatDirectory = os.path.join(self.logDirectory, 'qmat')
 		self.imageDirectory = os.path.join(self.rootDirectory, 'Images')
 
-	def MDAToH5(self, scannum):
+	def MDAToH5(self, scannum = None):
+		print('=== Processing Scan {0} from MDA to H5 ==='.format(scannum))
 		data = LoadMDA(scannum, self.mdaDirectory, self.imageDirectory, only3d = True)
-		_MDADataToH5(data, self.h5Directory, self.imageDirectory, loadimages = True)
+		_MDADataToH5(
+			data,
+			self.h5Directory,
+			self.imageDirectory,
+			os.path.join(self.qmatDirectory, 'twotheta.csv'),
+			os.path.join(self.qmatDirectory, 'gamma.csv'),
+			self.loadimages = True
+			)
 
 
-# def analyze_thscan(scannums, , XRFchannel, imagechannel, thetachannel, twothetachannel, gammachan, rdetchan, normchan = 1, plot = False):
+	def Listener(self, functions = ['scan2d']):
+		import epics
+		import epics.devices
+		
+		def findMostRecentScan():
+			fids = os.listdir(self.mdaDirectory)
+			scannums = [int(x.split('SOFT_')[1].split('.mda')[0]) for x in fids]
+			return max(scannums)
+		def lookupScanFunction(scannum):
+			with open(os.path.join(self.logDirectory, 'verboselog.json')) as f:
+				logdata = json.load(f)
+			return f[scannum]['ScanFunction']
 
+		self.lastProcessedScan = 0
+		while True:	#keep running unless manually quit by ctrl-c
+			mostRecentScan = findMostRecentScan()	#get most recent scan number
+			if self.lastProcessedScan < findMostRecentScan #have we looked at this scan yet?
+				scanFunction = lookupScanFunction(mostRecentScan)	#if not, lets see if its a scan we want to convert to an h5 file
+				if scanFunction in functions:	#if it is one of our target scan types (currently only works on scan2d as of 20191206)
+					if epics.caget("26idc:filter:Fi1:Set") == 0:	#make sure that the scan has completed (currently using filter one being closed as indicator of completed scan)
+						self.MDAToH5(scannum = mostRecentScan)	#if we passed all of that, fit the dataset
+				else:
+					self.lastProcessedScan = mostRecentScan 	#if the scan isnt a fittable type, set the scan number so we dont look at it again
+
+			time.sleep(5)	# check for new files every 5 seconds
