@@ -7,3 +7,4 @@ apstools.egg-info/PKG-INFO
 apstools.egg-info/SOURCES.txt
 apstools.egg-info/dependency_links.txt
 apstools.egg-info/top_level.txt
+apstools/include/xrfEmissionLines.json

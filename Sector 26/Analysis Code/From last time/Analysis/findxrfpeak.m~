@@ -1,0 +1,30 @@
+function findxrfpeak(eV, tol, plotflag)
+    if nargin < 3
+        plotflag = 0;
+    end
+    
+    load('/CNMshare/savedata/2018R3/20181023/Analysis/xrfLines.mat');
+    el_list = fieldnames(xrfLines);
+    el_list(strcmp(el_list,'lineNames')) ='';
+    hit_list = {};
+    
+    edgelabels = xrfLines.lineNames;
+
+    for elIndex =1:length(el_list
+        elName = 
+        emission_lines = xrfLines.(el).xrfEmissionLines;
+        for line_idx = 1:numel(emission_lines)
+            if abs(emission_lines(line_idx) - eV) <= tol
+                fprintf('%s %s\t%.2f keV\n', el, edgelabels(line_idx,:), emission_lines(line_idx));
+                hit_list = {hit_list, el};
+            end
+        end
+    end          
+    
+    hit_list(1) = [];
+    
+    if plotflag
+        addXRFLines(hit_list);
+    end
+        
+end

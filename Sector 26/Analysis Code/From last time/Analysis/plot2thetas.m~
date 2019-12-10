@@ -1,0 +1,42 @@
+function plot2thetas(qbin_dat)
+    materials = {'PbI2',...
+                 'EuI',...
+                 'MAEuPbI3',...
+                };
+    twotheta = {[23,12, 30.53, 35.17, 42.53, 37.07, 40.18, 34,41, 47.26, ]...
+                [25.96, 32.74, 25.87, 38.44, 31.86, 27.24, 18.79, 30.75, 42.25, 46.97, 42.48, 21.61]...
+                []}};
+            
+%     twothetalabels = {'PbI_2 11 10', 'PbI_2 210', 'PbI_2 215', 'PbI_2 1 1 15'};
+%     text_locations = cell(length(twothetalabels), 1);
+    plotfig = openfig('./Analysis/blankpowderdiff.fig');
+    im_temp = getimage(plotfig);
+    
+    im3d = zeros([size(im_temp) 3]);
+    im3d(:,:,1) = im_temp;
+    im3d(:,:,2) = im_temp;
+    im3d(:,:,3) = im_temp;
+    imshow(im3d);
+    twotheta_map = qbin_dat.twotheta;
+    colors = lines(numel(materials));
+    
+    for matl_idx = 1:numel(materials)
+        for i = 1:numel(twotheta{matl_idx})
+            im_temp = getimage(plotfig);
+            inrange = abs(twotheta_map - twotheta{matl_idx}(i))<=0.05;
+            for m = 1:size(im_temp,1)
+                for n = 1:size(im_temp,2)
+                    if inrange(m,n)
+                        im_temp(m,n,:) = colors(matl_idx, :);
+                    end
+                end
+            end
+            imshow(im_temp);
+        end
+    end
+    
+    for matl_idx = 1:numel(materials)
+        text(size(twotheta_map,2)*0.01,size(twotheta_map,1)*0.1*matl_idx,  materials{matl_idx}, 'color', colors(matl_idx, :));
+    end
+    
+end
