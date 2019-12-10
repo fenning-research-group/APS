@@ -58,9 +58,9 @@ twotheta = epics.Motor('26idcSOFT:sm3.')
 not_epics_motors = [hybridx.NAME, hybridy.NAME, twotheta.NAME]
 
 # Define zone plate in-focus position
-optic_in_x = -1065.7
-optic_in_y = -964.68
-optic_in_z = 2441.5
+optic_in_x = -1083.2
+optic_in_y = -966.1
+optic_in_z = -914.6
 # 10.4 kev below
 #optic_in_x = -1060.8
 #optic_in_y = -959.34
