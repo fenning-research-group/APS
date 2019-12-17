@@ -173,5 +173,3 @@ for ii = 1:1
     output(scannum) = tempoutput;
     scannum = scannum + 1;
 end
-
-toc

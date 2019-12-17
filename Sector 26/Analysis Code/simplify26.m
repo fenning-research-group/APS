@@ -134,4 +134,3 @@ function out = simplify26(scannum, qbin)
     out.data = sorted;
     out.summed_ccd = summed_pilatus_ccd;
 end
-

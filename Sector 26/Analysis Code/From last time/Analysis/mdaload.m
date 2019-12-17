@@ -168,5 +168,3 @@ else
     str='';
 end
 end
-
-

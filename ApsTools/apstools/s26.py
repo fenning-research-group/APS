@@ -10,6 +10,7 @@ import time
 import json
 from matplotlib.colors import LogNorm
 
+
 ### scripts for working with H5 Files
 
 def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
@@ -76,12 +77,11 @@ def QtoTwoTheta(q, energy = None):
 	return 2*np.rad2deg(np.arcsin((q*wavelength)/(4*np.pi)))
 
 ### H5 processing scripts
-
 def generate_energy_list(cal_offset = -0.0151744, cal_slope = 0.0103725, cal_quad = 0.00000):
 		energy = [cal_offset + cal_slope*x + cal_quad*x*x for x in range(2048)]
 		return energy
 
-def LoadMDA(scannum, mdadirectory, imagedirectory, only3d = False):   
+def LoadMDA(scannum, mdadirectory, imagedirectory, logdirectory, only3d = False):   
 	print('Reading MDA File')  
 	for f in os.listdir(mdadirectory):
 			if int(f.split('SOFT_')[1][:-4]) == scannum:
@@ -128,22 +128,23 @@ def LoadMDA(scannum, mdadirectory, imagedirectory, only3d = False):
 	}
 
 	if only3d:
+			with open(os.path.join(logdirectory, 'mcacal.json'), 'r') as f:
+				mcacal = json.load(f)
 			xrfraw = {}
 			for d in data[3].d:
 					name = d.name.split(':')[1].split('.')[0]
 					xrfraw[name] = {
-									'energy': generate_energy_list(),
+									'energy': generate_energy_list(*mcacal[name]),
 									'counts': np.array(d.data)
 							}
 			output['xrfraw'] = xrfraw
 
 	return output
 
-def _MDADataToH5(data, h5directory, Image_folder, twothetaccdpath, gammaccdpath, loadimages = True):
+def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpath, loadimages = True):
 	p = mp.Pool(mp.cpu_count())
 	# p = mp.Pool(4)
-	filepath = os.path.join(h5directory, 'scan_{0}.hdf5'.format(data['scan']))
-
+	filepath = os.path.join(h5directory, '26idbSOFT_{0:04d}.h5'.format(data['scan']))
 	with h5py.File(filepath, 'w') as f:
 			
 			info = f.create_group('/info')
@@ -191,7 +192,7 @@ def _MDADataToH5(data, h5directory, Image_folder, twothetaccdpath, gammaccdpath,
 					xrdcounts.attrs['description'] = 'Collapsed diffraction counts for each scan point.'
 					intxrdcounts = dpatterns.create_dataset('intcts', data = np.zeros((numpts,)))
 					intxrdcounts.attrs['description'] = 'Collapsed, area-integrated diffraction counts.'
-					imgpaths = [os.path.join(Image_folder, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
+					imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
 					print('Loading Images')
 					imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
 					d = imgdata[0].shape
@@ -212,7 +213,7 @@ def _MDADataToH5(data, h5directory, Image_folder, twothetaccdpath, gammaccdpath,
 
 					# images = None
 					# for m, n in np.ndindex(imnums.shape):
-					#         impath = os.path.join(Image_folder, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(imnums[m,n])))
+					#         impath = os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(imnums[m,n])))
 					#         im = cv2.imread(impath, -1)
 					#         if images is None:
 					#                 images = dimages.create_dataset('ccd', (imnums.shape[0], imnums.shape[1], im.shape[0], im.shape[1]), compression = "gzip", chunks = True)
@@ -240,7 +241,7 @@ class Helper():
 
 	def MDAToH5(self, scannum = None, loadimages = True):
 		print('=== Processing Scan {0} from MDA to H5 ==='.format(scannum))
-		data = LoadMDA(scannum, self.mdaDirectory, self.imageDirectory, only3d = True)
+		data = LoadMDA(scannum, self.mdaDirectory, self.imageDirectory, self.logDirectory, only3d = True)
 		_MDADataToH5(
 			data,
 			self.h5Directory,
