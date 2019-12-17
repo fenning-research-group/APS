@@ -58,9 +58,9 @@ twotheta = epics.Motor('26idcSOFT:sm3.')
 not_epics_motors = [hybridx.NAME, hybridy.NAME, twotheta.NAME]
 
 # Define zone plate in-focus position
-optic_in_x = -1065.7
-optic_in_y = -964.68
-optic_in_z = 2441.5
+optic_in_x = -1083.2
+optic_in_y = -966.1
+optic_in_z = -914.6
 # 10.4 kev below
 #optic_in_x = -1060.8
 #optic_in_y = -959.34
@@ -1022,7 +1022,10 @@ class Logger():
 	REK 20191206
 	"""
 	def __init__(self, sample = '', note = ''):
-		self.rootDir = epics.caget(scanrecord+':saveData_fileSystem',as_string=True)
+		self.rootDir = os.path.join(
+			epics.caget(scanrecord+':saveData_fileSystem',as_string=True),	#file directory
+			epics.caget(scanrecord+':saveData_subDir',as_string=True)		#subdir for our data
+			)
 		self.logDir = os.path.join(self.rootDir, 'Logging')
 		if not os.path.isdir(self.logDir):
 			os.mkdir(self.logDir)
@@ -1058,20 +1061,33 @@ class Logger():
 					"hybridx": '26idcnpi:X_HYBRID_SP.VAL',
 					"hybridy": '26idcnpi:Y_HYBRID_SP.VAL',
 					"twotheta": '26idcSOFT:sm3.VAL',
-					"gamma":    !UPDATE!,
-					"filter1": "26idc:filter:Fi1:Set",  #!UPDATE! Check that the filters are being read properly
+					"gamma":    '26idcSOFT:sm4.VAL',
+					"filter1": "26idc:filter:Fi1:Set",  
 					"filter2": "26idc:filter:Fi2:Set",
 					"filter3": "26idc:filter:Fi3:Set",
 					"filter4": "26idc:filter:Fi4:Set",
-					"energy": "26idbDCM:sm8.RBV",	#!UPDATE! Check that the energy is being read properly
+					"energy": "26idbDCM:sm8.RBV",	
 				}
+
+	def getXRFROI(self):
+		"""
+		loads ROI assignments from MCA1, assumes we are using same ROI assignments for MCA 1-4
+		"""
+		ROI = []
+		for roinum in range(32):
+			ROI.append({
+				'Line': epics.caget('26idcXMAP:mca1.R{0}NM'.format(roinum)),
+				'Low': epics.caget('26idcXMAP:mca1.R{0}LO'.format(roinum)),
+				'High': epics.caget('26idcXMAP:mca1.R{0}HI'.format(roinum))
+				})
+
+		return ROI
 
 	def updateLog(self, scanFunction, scanArgs):
 		self.scanNumber = epics.caget(scanrecord+':saveData_scanNumber',as_string=True)
 
 		self.scanEntry = {
-			'BeamEnergy': epics.caget(!UPDATE!),
-			'ROIs': {},
+			'ROIs': self.getXRFROI(),
 			'Sample': self.sample,
 			'Note': self.note,
 			'Date': str(datetime.datetime.now().date()),
@@ -1082,19 +1098,6 @@ class Logger():
 		
 		for label, key in motordict.items():
 			self.scanEntry[label] = epics.caget(key, as_string = True)
-
-		### find saved ROIs, get the element + energy range per ROI
-		# iterate through all saved data entries, find with "ROI"
-		for each in !UPDATE!DATAENTRIES:
-			if 'ROI' in each:
-				roiNum = int(each.split('')[0])
-				roiElement = epics.caget(!UPDATE!, as_string = True)
-				roiMin = epics.caget(!UPDATE!)
-				roiMax = epics.caget(!UPDATE!)
-				self.scanEntry['ROIs'][roinum] = {
-					'Element': roiElement,
-					'BinRange': (roiMin, roiMax)
-				}
 		
 		### Add entry to log file
 		with open(self.logbook_filepath, 'r') as f:
@@ -1105,3 +1108,5 @@ class Logger():
 
 
 		self.lastScan
+
+
