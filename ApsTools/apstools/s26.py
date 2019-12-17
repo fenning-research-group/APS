@@ -50,7 +50,6 @@ def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
 
 # def RockingCurve(fpaths):
 
-
 ### scripts for diffraction processing
 def TwoThetatoQ(tt, e):
 	"""
@@ -64,7 +63,6 @@ def QtoTwoTheta(q, e):
 	return 2*np.rad2deg(np.arcsin(q / (4*np.pi/wl)))
 
 ### H5 processing scripts
-
 def generate_energy_list(cal_offset = -0.0151744, cal_slope = 0.0103725, cal_quad = 0.00000):
         energy = [cal_offset + cal_slope*x + cal_quad*x*x for x in range(2048)]
         return energy
@@ -227,7 +225,7 @@ class H5Daemon():
 
 	def MDAToH5(self, scannum = None):
 		print('=== Processing Scan {0} from MDA to H5 ==='.format(scannum))
-		data = LoadMDA(scannum, self.mdaDirectory, self.imageDirectory, only3d = True)
+		data = LoadMDA(scannum, self.mdaDirectory, self.imageDirectory, self.logDirectory, only3d = True)
 		_MDADataToH5(
 			data,
 			self.h5Directory,
