@@ -17,7 +17,7 @@ def AddXRFLines(elements, ax = None, maxlinesperelement = 7, tickloc = 'bottom',
     trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
     for idx, element in enumerate(elements):
         color = plt.cm.get_cmap('tab10')(idx)
-        ax.text(0.99, 0.01 + ticklength*idx, element,
+        ax.text(0.99, 0.01 + 0.05*idx, element,
             fontname = 'Verdana', 
             fontsize = 12,
             fontweight = 'bold',
