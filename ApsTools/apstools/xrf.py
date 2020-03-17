@@ -35,7 +35,7 @@ def AddXRFLines(elements, ax = None, maxlinesperelement = 4, tickloc = 'bottom',
                 	plt.plot([line, line], [0.01 + stagger, 0.01 + ticklength + stagger], transform = trans, color = color, linewidth = 1.5)
                 else:
                 	plt.plot([line, line], [0.99 - stagger, 0.99 - ticklength - stagger], transform = trans, color = color, linewidth = 1.5)
-            plotted += 1
+                plotted += 1
             if plotted >= maxlinesperelement:
                 break
         stagger += tickstagger
