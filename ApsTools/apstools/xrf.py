@@ -18,7 +18,11 @@ def AddXRFLines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'bot
     trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
     for idx, element in enumerate(elements):
         color = plt.cm.get_cmap('tab10')(idx)
-        ax.text(0.99, 0.01 + 0.05*idx, element,
+        if tickloc == 'botom':
+            texty = 0.01 + 0.05*idx
+        else:
+            texty = 0.99 - 0.05*idx
+        ax.text(0.99, texty, element,
             fontname = 'Verdana', 
             fontsize = 12,
             fontweight = 'bold',
