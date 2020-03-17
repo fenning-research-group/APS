@@ -13,7 +13,6 @@ def AddXRFLines(elements, ax = None, maxlinesperelement = 7, tickloc = 'bottom',
     if ax is None:
     	ax = plt.gca()
     
-    ticklength = 0.05
     stagger = 0
     trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
     for idx, element in enumerate(elements):
