@@ -18,7 +18,7 @@ def AddXRFLines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'bot
     trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
     for idx, element in enumerate(elements):
         color = plt.cm.get_cmap('tab10')(idx)
-        if tickloc == 'botom':
+        if tickloc == 'bottom':
             texty = 0.01 + 0.05*idx
         else:
             texty = 0.99 - 0.05*idx
@@ -29,7 +29,7 @@ def AddXRFLines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'bot
             color = color, 
             transform = ax.transAxes,
             horizontalalignment = 'right',
-            verticalalignment = 'bottom')
+            verticalalignment = tickloc)
 
         plotted = 0
         for line in emissionLines[element]['xrfEmissionLines']:
