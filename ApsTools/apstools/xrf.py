@@ -9,7 +9,7 @@ packageDir = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(packageDir, 'include', 'xrfEmissionLines.json'), 'r') as f:
 	emissionLines = json.load(f)
 
-def AddXRFLines(elements, ax = None, maxlinesperelement = 4, tickloc = 'bottom', tickstagger = 0, ticklength = 0.05):        
+def AddXRFLines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'bottom', tickstagger = 0, ticklength = 0.05):        
     if ax is None:
     	ax = plt.gca()
     
