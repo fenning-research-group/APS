@@ -9,9 +9,315 @@ from tqdm import tqdm
 import time
 import json
 from matplotlib.colors import LogNorm
+from scipy.interpolate import interp2d
+import cmocean
+from matplotlib import patches as patches
+from frgtools import plotting as frgplt
+import pickle
+import multiprocessing.pool as mpp
+from functools import partial
+import skimage.filters as filters
+from skimage.measure import label, regionprops
+import PIL
 
+### scripts for rocking curve
+def RockingCurve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_ROI = [0, 0, None, None], plot = True, extent = None, min_counts = 50, stream = False, savepath = None):
+	"""
+	Given Pilatus ccds, a realspace ROI, and reciprocal space ROI, qmat, fits a rocking curve
+
+	ccds: [numimages x map_y x map_x x ccd_y x ccd_x] 
+	"""
+
+	### Set up our CCD arrays. 
+	ccdsum = ccds.sum(0).sum(0).sum(0)	#summed ccd image over all points in rocking curve
+	ROIccds = ccds[:,
+		real_ROI[0]:real_ROI[2],real_ROI[1]:real_ROI[3],
+		reciprocal_ROI[0]:reciprocal_ROI[2], reciprocal_ROI[1]:reciprocal_ROI[3]
+		].astype(np.float32)	#all data used for rocking curve fit, trimmed to real and reciprocal ROIs
+	mask = ROIccds.sum(4).sum(3).sum(0) <= min_counts	#any points on map without sufficient counts in reciprocal ROI are excluded from fit
+	ROIccds[:,mask] = np.nan 
+	sumROIccds = ROIccds.sum(axis = 0)	#total counts per realspace point over all unmasked realspace points
+
+	### Initialize data vectors
+	# hold q vector centroids from rocking curve fitting
+	qxc = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+	qyc = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+	qzc = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+	qmagc = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1])) #magnitude, used for d-spacing
+
+	# hold q vector centroids, rotated into sample-normal coordinate system so qz//sample normal, qx/qy represent tilts
+	qxc_r = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+	qyc_r = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+	qzc_r = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+
+	# hold calculated tilt in x and y direction
+	tiltx = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+	tilty = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+
+	# holds sample theta at which peak diffraction occurred. useful to see whether scanned sample thetas have found peak diffraction across realspace ROI
+	peaksamth = np.zeros((sumROIccds.shape[0], sumROIccds.shape[1]))
+
+	qxif = interp2d(list(range(reciprocal_ROI[3]-reciprocal_ROI[1])),list(range(reciprocal_ROI[2]-reciprocal_ROI[0])), qmat['qmat'][reciprocal_ROI[0]:reciprocal_ROI[2], reciprocal_ROI[1]:reciprocal_ROI[3], 0])
+	qyif = interp2d(list(range(reciprocal_ROI[3]-reciprocal_ROI[1])),list(range(reciprocal_ROI[2]-reciprocal_ROI[0])), qmat['qmat'][reciprocal_ROI[0]:reciprocal_ROI[2], reciprocal_ROI[1]:reciprocal_ROI[3], 1])
+	qzif = interp2d(list(range(reciprocal_ROI[3]-reciprocal_ROI[1])),list(range(reciprocal_ROI[2]-reciprocal_ROI[0])), qmat['qmat'][reciprocal_ROI[0]:reciprocal_ROI[2], reciprocal_ROI[1]:reciprocal_ROI[3], 2])
+	qmagif = interp2d(list(range(reciprocal_ROI[3]-reciprocal_ROI[1])),list(range(reciprocal_ROI[2]-reciprocal_ROI[0])), qmat['qmat'][reciprocal_ROI[0]:reciprocal_ROI[2], reciprocal_ROI[1]:reciprocal_ROI[3], 3])
+
+	def calc_centroid(im):
+		"""
+		given a 2-d array of values, returns tuple with array coordinates (m,n) of image centroid 
+		"""
+		vals = []
+		for m,n in np.ndindex(im.shape[0], im.shape[1]):
+			vals.append([m,n,im[m,n]])
+		vals = np.array(vals)
+		xc, yc = np.average(vals[:,:2], axis = 0, weights = vals[:,2])
+		return (yc, xc)
+
+	for m,n in np.ndindex(qmagc.shape[0], qmagc.shape[1]):
+		try:
+			[xc,yc] = calc_centroid(sumROIccds[m,n])
+			qxc[m,n] = qxif(yc, xc)
+			qyc[m,n] = qyif(yc, xc)
+			qzc[m,n] = qzif(yc, xc)
+			qmagc[m,n] = qmagif(yc,xc)
+			tlist = ROIccds[:,m,n].sum(1).sum(1)
+			tidx = np.where(tlist == np.nanmax(tlist))[0][0]
+			peaksamth[m,n] = thvals[tidx]
+		except:
+			qxc[m,n] = np.nan
+			qyc[m,n] = np.nan
+			qzc[m,n] = np.nan
+			qmagc[m,n] = np.nan
+			peaksamth[m,n] = np.nan
+
+
+	# calculate rotation matrix to move qmat coordinate system into diffraction plane normal coordinate system (using mean q vector as plane normal)
+	def calcRotation(u,v):
+		cos = np.dot(u,v)
+		cross = np.cross(u,v)
+		sin = np.linalg.norm(cross)
+		skew = np.array([
+			[0, -cross[2], cross[1]],
+			[cross[2], 0, -cross[0]],
+			[-cross[1], cross[0], 0]
+		])
+		
+		rotation = np.eye(3) + skew + np.dot(skew, skew)*(1-cos)/(sin**2)
+		return rotation
+
+
+	u = []
+	v = [0,0,1]	#adjust so mean q vector is parallel to [001] lattice vector
+	for q_ in [qxc, qyc, qzc]:
+		u.append(np.nanmean(q_))
+	u = u / np.linalg.norm(u)
+	rotation = calcRotation(u,v)
+
+	# rotate all q centroids into plane normal coordinate system
+	for m,n in np.ndindex(qxc.shape):
+		if np.isnan(qxc[m,n]):
+			for q_ in [qxc_r, qyc_r, qzc_r]:
+				q_[m,n] = np.nan
+		else:
+			v1 = rotation@np.array([qxc[m,n], qyc[m,n], qzc[m,n]])
+			for v_, q_ in zip(v1, [qxc_r, qyc_r, qzc_r]):
+				q_[m,n] = v_
+
+	#calculate tilt angles from qx/qy
+	tiltx = 180*np.arcsin(qxc_r/qmagc)/np.pi
+	tilty = 180*np.arcsin(qyc_r/qmagc)/np.pi
+	tiltx -= np.nanmean(tiltx)
+	tilty -= np.nanmean(tilty)
+
+	dataout = {
+		'q': np.array([qxc_r, qyc_r, qzc_r, qmagc]),
+		'q_raw': np.array([qxc, qyc, qzc, qmagc]),
+		'rotation': rotation,
+		'counts': sumROIccds.sum(axis = (2,3)),
+		'tiltx': tiltx,
+		'tilty': tilty,
+		'd': 2*np.pi/qmagc,
+		'peaksamth': peaksamth
+	}
+
+	if plot is True or savepath is not None:
+		if extent is None:
+			extent = [0, 0, ROIccds.shape[1], ROIccds.shape[2]]
+		extent[1] *= -ROIccds.shape[1]/(ccds.shape[1]-1)
+		extent[3] *= -ROIccds.shape[2]/(ccds.shape[2]-1)
+		
+		# fig, ax = plt.subplots(2,2, figsize = (12,6))
+		# ax = np.transpose(ax)
+
+		fig = plt.figure(figsize = (14,6))
+		gs = fig.add_gridspec(2,4)
+		ax = [[None, None], [None, None]]
+		ax[0][0] = fig.add_subplot(gs[0, 0])		#peak samth
+		ax[0][1] = fig.add_subplot(gs[:, 2:])	#d spacing
+		ax[1][0] = fig.add_subplot(gs[0,1])		#average counts per samth
+		ax[1][1] = fig.add_subplot(gs[1, 0:2])   #ROI on Pilatus
+
+
+
+		im = ax[0][1].imshow(dataout['d'], extent = extent, cmap = cmocean.cm.curl)# cmap = plt.cm.RdBu)
+		xv, yv = np.meshgrid(np.linspace(extent[0], extent[1], tiltx.shape[1]), np.linspace(extent[3], extent[2], tiltx.shape[0]))
+		if stream:
+			xlim0 = ax[0][1].get_xlim()
+			ylim0 = ax[0][1].get_ylim()
+			mag = np.sqrt(tiltx**2 + tilty**2)
+			mag *= 4/np.nanmax(mag)
+			ax[0][1].streamplot(
+				xv[0,:],
+				yv[:,0],
+				tiltx,
+				tilty,
+				density = 1,
+				color = [0,0,0,0.7],
+				linewidth = mag
+				)
+			ax[0][1].set_xlim(xlim0)
+			ax[0][1].set_ylim(ylim0)
+		else:
+			ax[0][1].quiver(
+				xv[::2, ::2],
+				yv[::2, ::2],
+				tiltx[::2, ::2],
+				tilty[::2, ::2],
+				angles = 'uv',
+				pivot = 'middle',
+				scale_units = 'xy',
+				headaxislength = 2,
+				headwidth = 6
+				)
+		frgplt.Scalebar(ax[0][1], 1e-6, box_color = [0,0,0], box_alpha = 0.8, pad = 0.3)
+		ax[0][1].set_xticks([])
+		ax[0][1].set_yticks([])
+
+		cb = plt.colorbar(im ,ax = ax[0][1], fraction = 0.036)
+		# cb.set_label('$||Q||\ ({\AA}^{-1})$')
+		cb.set_label('$d\ (\AA)$')
+		ax[0][1].set_title('Rocking Curve Fitted')
+
+		im = ax[0][0].imshow(peaksamth, cmap = plt.cm.coolwarm, vmin = thvals[0], vmax = thvals[-1])
+		cb = plt.colorbar(im, ax = ax[0][0], fraction = 0.036)
+		cb.set_label('Peak Samth')
+		ax[0][0].set_title('Rocking Curve Peak (Gray = Good)')
+		x = thvals
+		y = []
+		for rc in ROIccds:
+			y.append(np.nanmean(rc))
+		ax[1][0].plot(x,y,':o')
+		ax[1][0].set_xlabel('Sample Theta')
+		ax[1][0].set_ylabel('Average Counts')
+		ax[1][0].set_title('Map-Averaged Diffraction Counts in CCD ROI')
+
+		ax[1][1].imshow(ccdsum, norm=LogNorm(vmin=0.01, vmax=ccdsum.max()), cmap = plt.cm.gray)
+		rect = patches.Rectangle((reciprocal_ROI[1], reciprocal_ROI[0]),reciprocal_ROI[3]-reciprocal_ROI[1],reciprocal_ROI[2]-reciprocal_ROI[0],linewidth=1,edgecolor='r',facecolor='none')
+		ax[1][1].add_artist(rect)
+		ax[1][1].set_xticks([])
+		ax[1][1].set_yticks([])
+		ax[1][1].set_title('Diffraction CCD ROI')
+
+		plt.tight_layout()
+		if savepath is not None:
+			plt.savefig(savepath, bbox_inches = 'tight', dpi = 300)
+		if plot:
+			plt.show()
+		else:
+			plt.close()
+
+	
+
+	return dataout
 
 ### scripts for working with H5 Files
+
+def FindROIs(scannums, rootdir, bin_size = 2, min_intensity = 3, savedir = None, plot = True):
+	def scanfid(scannum, filetype = 'h5'):
+		if filetype == 'h5':
+			return (os.path.join(h5dir, '26idbSOFT_{0:04d}.h5'.format(scannum)))
+		elif filetype == 'mda':
+			return (os.path.join(mdadir, '26idbSOFT_{0:04d}.mda'.format(scannum)))
+
+	def updateRegions(r, regions, centroid_distance_threshold = 10):
+		for ridx, r_ in enumerate(regions):
+			if np.linalg.norm([a - b for a,b in zip(r.centroid, r_.centroid)]) <= centroid_distance_threshold: #euclidean dsitance - centroids are close enough that we are assuming these regions are the same
+				if r.solidity > r_.solidity:   #the diffraction at this point is a better representation of diffraction region on ccd
+					regions[ridx] = r
+					return regions
+		#if we make it here, we have a new region
+		regions.append(r)
+		return regions
+		
+	analysisdir = os.path.join(rootdir, 'Analysis')
+	h5dir = os.path.join(rootdir, 'h5')
+	mdadir = os.path.join(rootdir, 'mda')
+	if savedir is None:
+		savedir = os.path.join(rootdir, 'RC_ROIs.pkl')
+
+	print('Loading CCD images')
+	ccds = []
+	thvals = []
+	for idx, s in tqdm(enumerate(scannums), total = len(scannums)):
+		fid = scanfid(s)
+		with h5py.File(fid, 'r') as d:
+			if idx == 0:
+				twotheta = d['xrd']['im']['twotheta'][()]
+
+			ccds.append(d['xrd']['im']['ccd'][()].astype(np.int16))
+			thvals.append(d['detectors'][60][0,0])
+
+	ccds = np.array(ccds)
+
+	print('Starting multiprocessing pool')
+	allregions = []
+	os.environ["OPENBLAS_MAIN_FREE"] = "1"
+	with mp.Pool(6) as p:
+		print('Segmenting regions per map point')
+
+		iterable = []
+		m = 0
+		while m <= ccds.shape[1] - bin_size:
+			n = 0
+			while n <= ccds.shape[2] - bin_size:
+				iterable.append((m,n))
+				n = n + bin_size
+			m = m + bin_size
+		# iterable = [(x[0], x[1]) for x in np.ndindex(ccds.shape[1]-bin_size, ccds.shape[2]-bin_size)]
+		# iterable = [(x[0], x[1]) for x in np.ndindex(2,2)]
+		for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = 2, bin_size = bin_size, min_intensity = min_intensity), iterable, chunksize = 150), total=len(iterable)):
+			# if type(r) is not list:
+			# 	r = [r]
+			# 	for r_ in r:
+			# 		if r_.area >= 10:
+			# 			updateRegions(r_, regions)
+			allregions.append(r)
+
+	regions = []
+	for rs in tqdm(allregions):
+		if type(rs) is not list:
+			rs = [rs]
+		for r in rs:
+			if r.area >= 10:
+				updateRegions(r, regions)
+
+	if plot:
+		roiimg = np.full((ccds.shape[3], ccds.shape[4]), np.nan)
+		bgimg = np.ones(roiimg.shape)
+		for ridx, r in enumerate(regions):
+			for m, n in r.coords:
+				roiimg[m,n] = ridx
+
+		plt.figure()
+		plt.imshow(bgimg)
+		plt.imshow(roiimg, cmap = plt.cm.nipy_spectral)
+		plt.title('{} Regions Identified'.format(len(regions)))
+		plt.show()
+	return regions, ccds
+	# print('Saving to {0}'.format(savedir))
+	# with open(savedir, 'wb') as f:
+	# 	pickle.dump(allregions, f)
+
 
 def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	"""
@@ -178,6 +484,7 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
 			
 			f.flush()	# write xrf data to disk
 
+
 			if loadimages:
 					numpts = 200
 					twothetaimage = dimages.create_dataset('twotheta', data = np.genfromtxt(twothetaccdpath, delimiter=','))
@@ -194,7 +501,8 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
 					intxrdcounts.attrs['description'] = 'Collapsed, area-integrated diffraction counts.'
 					imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
 					print('Loading Images')
-					imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
+					# imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
+					imgdata = p.starmap(_loadImage, [(x,) for x in imgpaths])
 					d = imgdata[0].shape
 					imgdata = np.array(imgdata).reshape(imnums.shape[0], imnums.shape[1], d[0], d[1])
 
@@ -392,3 +700,58 @@ class Helper():
 		
 		if plotAtTheEnd:
 			plt.show()
+
+
+### Helper Functions
+
+def _loadImage(path):
+	im = PIL.Image.open(path)
+	return np.array(im)
+
+def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_size = 5):
+
+	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+	ccds0[np.isnan(ccds0)] = 0
+	ccds0[np.abs(ccds0) == np.inf] = 0
+	# ccd_thresh = filters.threshold_li(ccds0,tolerance = 0.45) 
+	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
+	mask = ccds0 > 1.5
+	mask_labels = label(mask)
+	# return regionprops(mask_labels, intensity_image = ccds0)
+	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
+
+def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2):
+
+	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+	ccd_thresh = filters.threshold_li(ccds0, tolerance = 2) 
+	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
+	mask = ccds0 > ccd_thresh
+	mask_labels = label(mask)
+	# return regionprops(mask_labels, intensity_image = ccds0)
+	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
+
+
+def __istarmap(self, func, iterable, chunksize=1):
+	"""starmap-version of imap
+	"""
+	if self._state != mpp.RUN:
+		raise ValueError("Pool not running")
+
+	if chunksize < 1:
+		raise ValueError(
+			"Chunksize must be 1+, not {0:n}".format(
+				chunksize))
+
+	task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
+	result = mpp.IMapIterator(self._cache)
+	self._taskqueue.put(
+		(
+			self._guarded_task_generation(result._job,
+										  mpp.starmapstar,
+										  task_batches),
+			result._set_length
+		))
+	return (item for chunk in result for item in chunk)
+
+
+mpp.Pool.istarmap = __istarmap

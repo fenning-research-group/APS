@@ -8,7 +8,7 @@ packageDir = os.path.dirname(os.path.abspath(__file__))
 
 def ScatteringFactor(element, energy):
 	dataDir = os.path.join(packageDir, 'include', 'scatfacts')
-#     dataElements = [x[:-4] for x in os.listdir(dataDir)]
+    # dataElements = [x[:-4] for x in os.listdir(dataDir)]
 
 	fid = os.path.join(dataDir, '{0}.nff'.format(str.lower(element)))
 	with open(fid, 'r') as f:
@@ -60,6 +60,16 @@ def Transmission(elements, numElements, density, thickness, energy):
 	return t
 
 def XRFSelfAbsorption(elements, numElements, density, thickness, incidentenergy, xrfenergy, sampletheta, detectortheta):
+	"""
+	elements = list of elements
+	numElements = list of # each element per unit cell
+	density = (g/cm3)
+	thickness = cm
+	incidentenergy = eV
+	xrfenergy = eV
+	sampletheta = angle between incident beam and sample surface (deg)
+	detectortheta = angle between incident beam and detector (deg)
+	"""
 	incidentAttCoeff = AttenuationCoefficient(elements, numElements, density, incidentenergy)
 	exitAttCoeff = AttenuationCoefficient(elements, numElements, density, xrfenergy)
 	
