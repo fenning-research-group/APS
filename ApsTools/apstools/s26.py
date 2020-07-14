@@ -13,7 +13,7 @@ from matplotlib.colors import LogNorm
 
 ### scripts for working with H5 Files
 
-def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
+def diffraction_map(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	"""
 	Plots maps of diffraction across map area
 	"""
@@ -50,7 +50,7 @@ def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	if displayPlot:
 		plt.show()
 
-def TwoThetatoQ(twotheta, energy = None):
+def twotheta_to_q(twotheta, energy = None):
 	"""
 	Converts a twotheta diffraction angle to scattering q vector magnitude given 
 	the incident photon energy in keV
@@ -63,7 +63,7 @@ def TwoThetatoQ(twotheta, energy = None):
 
 	return 	(4*np.pi/wavelength)*np.sin(np.deg2rad(twotheta/2))
 
-def QtoTwoTheta(q, energy = None):
+def q_to_twotheta(q, energy = None):
 	"""
 	Converts a scattering q vector magnitude to twotheta diffraction angle given 
 	the incident photon energy in keV
@@ -81,7 +81,7 @@ def generate_energy_list(cal_offset = -0.0151744, cal_slope = 0.0103725, cal_qua
 		energy = [cal_offset + cal_slope*x + cal_quad*x*x for x in range(2048)]
 		return energy
 
-def LoadMDA(scannum, mdadirectory, imagedirectory, logdirectory, only3d = False):   
+def load_MDA(scannum, mdadirectory, imagedirectory, logdirectory, only3d = False):   
 	print('Reading MDA File')  
 	for f in os.listdir(mdadirectory):
 			if int(f.split('SOFT_')[1][:-4]) == scannum:
@@ -225,8 +225,8 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
 					#                 intxrdcounts = intxrdcounts + xrdcounts[m,n,tidx]
 	p.close()
 
-class Helper():
-	def __init__(self, rootdirectory):
+class Daemon():
+	def __init__(self, rootdirectory, functions = ['scan2d']):
 		self.rootDirectory = rootdirectory
 		self.mdaDirectory = os.path.join(self.rootDirectory, 'mda')
 		self.h5Directory = os.path.join(self.rootDirectory, 'h5')
@@ -234,14 +234,22 @@ class Helper():
 			os.mkdir(self.h5Directory)
 
 		self.logDirectory = os.path.join(self.rootDirectory, 'Logging')
+		if not os.path.isdir(self.logDirectory):
+			os.mkdir(self.logDirectory)
+			
 		self.qmatDirectory = os.path.join(self.logDirectory, 'qmat')
+		if not os.path.isdir(self.qmatDirectory):
+			os.mkdir(self.qmatDirectory)
+			print('Make sure to save qmat files to {}'.format(self.qmatDirectory))
 		# with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
 		# 	self.qmat = json.load(f)
 		self.imageDirectory = os.path.join(self.rootDirectory, 'Images')
 
+		self.Listener() #start the daemon
+
 	def MDAToH5(self, scannum = None, loadimages = True):
 		print('=== Processing Scan {0} from MDA to H5 ==='.format(scannum))
-		data = LoadMDA(scannum, self.mdaDirectory, self.imageDirectory, self.logDirectory, only3d = True)
+		data = load_MDA(scannum, self.mdaDirectory, self.imageDirectory, self.logDirectory, only3d = True)
 		_MDADataToH5(
 			data,
 			self.h5Directory,
@@ -251,7 +259,7 @@ class Helper():
 			loadimages = loadimages
 			)
 
-	def Listener(self, functions = ['scan2d']):
+	def Listener(self, functions):
 		import epics
 		import epics.devices
 		
@@ -271,11 +279,18 @@ class Helper():
 				scanFunction = lookupScanFunction(mostRecentScan)	#if not, lets see if its a scan we want to convert to an h5 file
 				if scanFunction in functions:	#if it is one of our target scan types (currently only works on scan2d as of 20191206)
 					if epics.caget("26idc:filter:Fi1:Set") == 0:	#make sure that the scan has completed (currently using filter one being closed as indicator of completed scan)
-						self.MDAToH5(scannum = mostRecentScan)	#if we passed all of that, fit the dataset
+						try:
+							self.MDAToH5(scannum = mostRecentScan)	#if we passed all of that, fit the dataset
+						except:
+							print('  Error converting scan {} to H5'.format(mostRecentScan))
+						self.lastProcessedScan = mostRecentScan
 				else:
 					self.lastProcessedScan = mostRecentScan 	#if the scan isnt a fittable type, set the scan number so we dont look at it again
 
 			time.sleep(5)	# check for new files every 5 seconds
+
+
+	### Plotting functions - should be moved outside of Daemon object
 
 	def TwoThetaWaterfall(self, scannum, numtt = 200, timestep = 1, xrdlib = [], hotccdthreshold = np.inf, ax = None):
 		plotAtTheEnd = False
@@ -322,7 +337,7 @@ class Helper():
 		if plotAtTheEnd:
 			plt.plot()
 
-	def SumCCD(scannum, numtt = 200, xrdlib = [], hotccdthreshold = np.inf, ax = None):
+	def SumCCD(self, scannum, numtt = 200, xrdlib = [], hotccdthreshold = np.inf, ax = None):
 		plotAtTheEnd = False
 		if ax is None:
 			fig, ax = plt.subplots(figsize = (8, 4))
@@ -357,7 +372,7 @@ class Helper():
 		
 		for idx, xlib_ in tqdm(enumerate(xrdlib), total = len(xrdlib), desc = 'Fitting'):
 			c = plt.cm.tab10(idx)
-	#         ax[0].text(1.0, 1.0 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure) 
+			# ax[0].text(1.0, 1.0 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure) 
 			cmap = colors.ListedColormap([c, c])
 			bounds=[0,1,10]
 			norm = colors.BoundaryNorm(bounds, cmap.N)

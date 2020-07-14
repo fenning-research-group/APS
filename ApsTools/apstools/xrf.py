@@ -131,7 +131,7 @@ def transmission(elements, numElements, density, thickness, energy):
 
 def self_absorption(elements, numElements, density, thickness, incidentenergy, xrfenergy, sampletheta, detectortheta):
     '''
-    returns fraction of x-ray fluorescence excited and transmitted through a sample, and reaching to an XRF detector. This
+    returns fraction of x-ray fluorescence excited, transmitted through a sample, and reaching to an XRF detector. This
     calculation assumes no secondary fluorescence/photon recycling. Calculations are defined by:
 
         elements: list of elements ['Fe', 'Cu']
