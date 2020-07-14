@@ -12,7 +12,7 @@ with open(os.path.join(packageDir, 'include', 'xrfEmissionLines.json'), 'r') as 
 
 ### Plotting Functions
 
-def add_XRF_lines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'bottom', tickstagger = 0, ticklength = 0.05):     
+def plot_XRF_lines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'bottom', tickstagger = 0, ticklength = 0.05):     
     '''
     Given a list of elements, adds tick marks on a matplotlib plot axis indicated xrf emission lines for those elements.
     If ax is not specified, uses most recent plt axis.
