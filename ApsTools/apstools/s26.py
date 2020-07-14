@@ -86,23 +86,23 @@ def q_to_twotheta(q, energy = None):
 
 	return 2*np.rad2deg(np.arcsin((q*wavelength)/(4*np.pi)))
 
-def twotheta_adjust(twotheta, e, e0 = None):
+def twotheta_adjust(twotheta, energy, energy0 = None):
 	'''
 	converts twotheta value from initial x-ray energy (defaults to Cu-ka at 8.04 keV)
 	to that at another x-ray energy
 
 		twotheta: twotheta angle (degrees) at initial energy
-		e: energy to adjust angle to (keV)
-		e0: energy to adjust angle from (keV)
+		energy: energy to adjust angle to (keV)
+		energy0: energy to adjust angle from (keV)
 	'''
 
-	if e0 is None:
+	if energy0 is None:
 		print('No initial photon energy provided by user - assuming 8.040 keV (Cu-k-alpha)')
-		e0 = 8.040
+		energy0 = 8.040
 
 	return q_to_twotheta(
-				q = twotheta_to_q(twotheta, energy = e0),
-				energy = e
+				q = twotheta_to_q(twotheta, energy = energy0),
+				energy = energy
 				)
 
 ### H5 processing Daemon + associated scripts
