@@ -230,7 +230,7 @@ def RockingCurve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_R
 
 	return dataout
 
-### scripts for working with H5 Files
+### scripts for working with Daemon-generated H5 Files
 
 def FindROIs(scannums, rootdir, bin_size = 2, min_intensity = 3, savedir = None, plot = True):
 	def scanfid(scannum, filetype = 'h5'):
@@ -319,9 +319,17 @@ def FindROIs(scannums, rootdir, bin_size = 2, min_intensity = 3, savedir = None,
 	# 	pickle.dump(allregions, f)
 
 
-def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
+def diffraction_map(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	"""
-	Plots maps of diffraction across map area
+	Plots maps of diffraction intensty across map area, given the following:
+
+		fpath: filepath to daemon-generated H5 file
+		twotheta: 
+					One of the following must be provided. Each would be a list of up to 5 values.
+		q: 
+ 		ax: The matplotlib axis to display to. if none is provided, a new one will be generated
+ 		tol: the tolerance/window size of diffraction signal to count intensity for. (counts intensity at +/- tol). defaults to 2
+
 	"""
 	colors = [plt.cm.Reds, plt.cm.Blues, plt.cm.Greens, plt.cm.Purples, plt.cm.Oranges]
 
@@ -335,7 +343,7 @@ def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
 		x = 'twotheta'
 		xdata = twotheta
 		xlabel = '$\degree$'
-	elif qmat is not None:
+	elif q is not None:
 		x = 'q'
 		xdata = q
 		xlabel = ' $A^{-1}$'
@@ -356,7 +364,9 @@ def DiffractionMap(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	if displayPlot:
 		plt.show()
 
-def TwoThetatoQ(twotheta, energy = None):
+### convenience functions
+
+def twotheta_to_q(twotheta, energy = None):
 	"""
 	Converts a twotheta diffraction angle to scattering q vector magnitude given 
 	the incident photon energy in keV
@@ -369,7 +379,7 @@ def TwoThetatoQ(twotheta, energy = None):
 
 	return 	(4*np.pi/wavelength)*np.sin(np.deg2rad(twotheta/2))
 
-def QtoTwoTheta(q, energy = None):
+def q_to_twotheta(q, energy = None):
 	"""
 	Converts a scattering q vector magnitude to twotheta diffraction angle given 
 	the incident photon energy in keV
@@ -382,12 +392,270 @@ def QtoTwoTheta(q, energy = None):
 
 	return 2*np.rad2deg(np.arcsin((q*wavelength)/(4*np.pi)))
 
-### H5 processing scripts
-def generate_energy_list(cal_offset = -0.0151744, cal_slope = 0.0103725, cal_quad = 0.00000):
-		energy = [cal_offset + cal_slope*x + cal_quad*x*x for x in range(2048)]
-		return energy
+def twotheta_adjust(twotheta, energy, energy0 = None):
+	'''
+	converts twotheta value from initial x-ray energy (defaults to Cu-ka at 8.04 keV)
+	to that at another x-ray energy
 
-def LoadMDA(scannum, mdadirectory, imagedirectory, logdirectory, only3d = False):   
+		twotheta: twotheta angle (degrees) at initial energy
+		energy: energy to adjust angle to (keV)
+		energy0: energy to adjust angle from (keV)
+	'''
+
+	if energy0 is None:
+		print('No initial photon energy provided by user - assuming 8.040 keV (Cu-k-alpha)')
+		energy0 = 8.040
+
+	return q_to_twotheta(
+				q = twotheta_to_q(twotheta, energy = energy0),
+				energy = energy
+				)
+
+### H5 processing Daemon + associated scripts
+
+class Daemon():
+	def __init__(self, rootdirectory, functions = ['scan2d']):
+		self.rootDirectory = rootdirectory
+		self.mdaDirectory = os.path.join(self.rootDirectory, 'mda')
+		self.h5Directory = os.path.join(self.rootDirectory, 'h5')
+		if not os.path.isdir(self.h5Directory):
+			os.mkdir(self.h5Directory)
+
+		self.logDirectory = os.path.join(self.rootDirectory, 'Logging')
+		if not os.path.isdir(self.logDirectory):
+			os.mkdir(self.logDirectory)
+			
+		self.qmatDirectory = os.path.join(self.logDirectory, 'qmat')
+		if not os.path.isdir(self.qmatDirectory):
+			os.mkdir(self.qmatDirectory)
+			print('Make sure to save qmat files to {}'.format(self.qmatDirectory))
+		# with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
+		# 	self.qmat = json.load(f)
+		self.imageDirectory = os.path.join(self.rootDirectory, 'Images')
+
+		self.Listener() #start the daemon
+
+	def MDAToH5(self, scannum = None, loadimages = True):
+		print('=== Processing Scan {0} from MDA to H5 ==='.format(scannum))
+		data = load_MDA(scannum, self.mdaDirectory, self.imageDirectory, self.logDirectory, only3d = True)
+		_MDADataToH5(
+			data,
+			self.h5Directory,
+			self.imageDirectory,
+			os.path.join(self.qmatDirectory, 'twotheta.csv'),
+			os.path.join(self.qmatDirectory, 'gamma.csv'),
+			loadimages = loadimages
+			)
+
+	def Listener(self, functions):
+		import epics
+		import epics.devices
+		
+		def findMostRecentScan():
+			fids = os.listdir(self.mdaDirectory)
+			scannums = [int(x.split('SOFT_')[1].split('.mda')[0]) for x in fids]
+			return max(scannums)
+		def lookupScanFunction(scannum):
+			with open(os.path.join(self.logDirectory, 'verboselog.json')) as f:
+				logdata = json.load(f)
+			return f[scannum]['ScanFunction']
+
+		self.lastProcessedScan = 0
+		while True:	#keep running unless manually quit by ctrl-c
+			mostRecentScan = findMostRecentScan()	#get most recent scan number
+			if self.lastProcessedScan < findMostRecentScan: #have we looked at this scan yet?
+				scanFunction = lookupScanFunction(mostRecentScan)	#if not, lets see if its a scan we want to convert to an h5 file
+				if scanFunction in functions:	#if it is one of our target scan types (currently only works on scan2d as of 20191206)
+					if epics.caget("26idc:filter:Fi1:Set") == 0:	#make sure that the scan has completed (currently using filter one being closed as indicator of completed scan)
+						try:
+							self.MDAToH5(scannum = mostRecentScan)	#if we passed all of that, fit the dataset
+						except:
+							print('  Error converting scan {} to H5'.format(mostRecentScan))
+						self.lastProcessedScan = mostRecentScan
+				else:
+					self.lastProcessedScan = mostRecentScan 	#if the scan isnt a fittable type, set the scan number so we dont look at it again
+
+			time.sleep(5)	# check for new files every 5 seconds
+
+
+	### Plotting functions - should be moved outside of Daemon object
+
+	def TwoThetaWaterfall(self, scannum, numtt = 200, timestep = 1, xrdlib = [], hotccdthreshold = np.inf, ax = None):
+		plotAtTheEnd = False
+		if ax is None:
+			fig, ax = plt.subplots(figsize = (8, 4))
+			plotAtTheEnd = True
+
+		with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
+			qmat = json.load(f)
+
+		imdir = os.path.join(self.imageDirectory, str(scannum))
+		imfids = [os.path.join(imdir, x) for x in os.listdir(imdir) if 'Pilatus' in x]	#currently only anticipates Pilatus CCD images
+
+		tt = np.linspace(qmat['twotheta'].min(), qmat['twotheta'].max(), numtt)
+		cts = np.full((len(imfids), numtt), np.nan)
+		time = np.linspace(0, len(imfids))*timestep
+		
+		for idx, fid in tqdm(enumerate(imfids), total = len(imfids), desc = 'Loading Images'):
+			im = np.asarray(PIL.Image.open(fid))
+			if im.max() >= hotccdthreshold:
+				pass
+			else:
+				for ttidx, tt_ in enumerate(tt):
+					mask = np.abs(qmat['twotheta'] - tt_) <= 0.05
+					cts[idx,ttidx] = im[mask].sum()
+		
+		im = ax.imshow(cts, cmap = plt.cm.inferno, extent = [tt[0], tt[-1], time[0], time[-1]], norm = LogNorm(1, np.nanmax(cts))) #aspect = 0.02, 
+		ax.set_aspect('auto')
+		ax.set_xlabel('$2\Theta\ (\degree,10keV)$')
+		ax.set_ylabel('Time (s)')
+		cb = plt.colorbar(im, ax = ax, fraction = 0.03)
+		cb.set_label('Counts (log scale)')
+		ticksize = time.max()/20
+		
+		for idx, xlib_ in enumerate(xrdlib):
+			c = plt.cm.tab10(idx)
+			ax.text(1.0, 0.6 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure)        
+			for p in xlib_['peaks']:
+				if p <= tt.max() and p >= tt.min():
+					ax.plot([p, p], [time[-1] + (0.5*idx)*ticksize, time[-1] + (0.5*(idx) + 0.8) * ticksize], color = c, linewidth = 0.6, clip_on = False)
+		ax.set_clip_on(False)
+		ax.set_ylim((0, time.max()))
+
+		if plotAtTheEnd:
+			plt.plot()
+
+	def SumCCD(self, scannum, numtt = 200, xrdlib = [], hotccdthreshold = np.inf, ax = None):
+		plotAtTheEnd = False
+		if ax is None:
+			fig, ax = plt.subplots(figsize = (8, 4))
+			plotAtTheEnd = True
+		elif len(ax) != 2:
+			print('Error: If providing axes to plot to, a list of two axes must be provided! Aborting.')
+			return
+
+		with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
+			qmat = json.load(f)
+
+		imdir = os.path.join(rootdir, 'Images', str(scannum))
+		imfids = [os.path.join(imdir, x) for x in os.listdir(imdir) if 'Pilatus' in x] #currently only anticipates Pilatus images
+		
+		for idx, fid in tqdm(enumerate(imfids), total = len(imfids), desc = 'Loading Images'):
+			im = np.asarray(PIL.Image.open(fid))
+			if idx == 0:
+				ccdsum = np.zeros(im.shape)
+			if im.max() < hotccdthreshold:
+				ccdsum += im
+		
+		ax[0].imshow(ccdsum, cmap = plt.cm.gray, norm = LogNorm(0.1, ccdsum.max()))
+		
+		tt = np.linspace(qmat['twotheta'].min(), qmat['twotheta'].max(), numtt)
+		cts = []
+		for idx, tt_ in enumerate(tt):
+			mask = np.abs(qmat['twotheta'] - tt_) <= 0.05
+			cts.append(ccdsum[mask].sum())
+		ax[1].plot(tt, cts)
+		xlim0 = ax[1].get_xlim()
+		ylim0 = ax[1].get_ylim()
+		
+		for idx, xlib_ in tqdm(enumerate(xrdlib), total = len(xrdlib), desc = 'Fitting'):
+			c = plt.cm.tab10(idx)
+			# ax[0].text(1.0, 1.0 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure) 
+			cmap = colors.ListedColormap([c, c])
+			bounds=[0,1,10]
+			norm = colors.BoundaryNorm(bounds, cmap.N)
+			
+			first = True
+			for p in xlib_['peaks']:            
+				mask = np.abs(qmat['twotheta'] - p) <= 0.05
+				mask = mask.astype(float)*5
+				mask[mask == 0] = np.nan
+	#             cmask = cmask.astype(float)
+	#             cmask[cmask == 0] = np.nan
+	#             mask = np.array([mask*c_ for c_ in c]).reshape(195, 487, 4)
+	#             return mask
+	#             mask[mask == 0] = np.nan
+				ax[0].imshow(mask, cmap = cmap, alpha = 0.4)#, cmap = plt.cm.Reds)
+				if first:
+					ax[1].plot(np.ones((2,))*p, ax[1].get_ylim(), label = xlib_['title'], color = c, linewidth = 0.3, linestyle = ':')
+					first = False
+				else:
+					ax[1].plot(np.ones((2,))*p, ax[1].get_ylim(), color = c, linewidth = 1, linestyle = ':')
+	   
+		ax[1].set_xlim(xlim0)
+		ax[1].set_ylim(ylim0)
+		leg = ax[1].legend(loc = 'upper right')
+		for line in leg.get_lines():
+			line.set_linewidth(2.0)
+			line.set_linestyle('-')
+
+		ax[1].set_xlabel('$2\Theta\ (10keV)$')
+		ax[1].set_ylabel('Counts')
+		ax[0].set_title('Integrated Diffraction, Scan {0}'.format(scannum))
+		
+		if plotAtTheEnd:
+			plt.show()
+
+
+### Helper Functions
+
+def _loadImage(path):
+	im = PIL.Image.open(path)
+	return np.array(im)
+
+def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_size = 5):
+
+	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+	ccds0[np.isnan(ccds0)] = 0
+	ccds0[np.abs(ccds0) == np.inf] = 0
+	# ccd_thresh = filters.threshold_li(ccds0,tolerance = 0.45) 
+	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
+	mask = ccds0 > 1.5
+	mask_labels = label(mask)
+	# return regionprops(mask_labels, intensity_image = ccds0)
+	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
+
+def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2):
+
+	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+	ccd_thresh = filters.threshold_li(ccds0, tolerance = 2) 
+	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
+	mask = ccds0 > ccd_thresh
+	mask_labels = label(mask)
+	# return regionprops(mask_labels, intensity_image = ccds0)
+	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
+
+
+def __istarmap(self, func, iterable, chunksize=1):
+	"""starmap-version of imap
+	"""
+	if self._state != mpp.RUN:
+		raise ValueError("Pool not running")
+
+	if chunksize < 1:
+		raise ValueError(
+			"Chunksize must be 1+, not {0:n}".format(
+				chunksize))
+
+	task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
+	result = mpp.IMapIterator(self._cache)
+	self._taskqueue.put(
+		(
+			self._guarded_task_generation(result._job,
+										  mpp.starmapstar,
+										  task_batches),
+			result._set_length
+		))
+	return (item for chunk in result for item in chunk)
+
+
+mpp.Pool.istarmap = __istarmap
+
+def generate_energy_list(cal_offset = -0.0151744, cal_slope = 0.0103725, cal_quad = 0.00000):
+	energy = [cal_offset + cal_slope*x + cal_quad*x*x for x in range(2048)]
+	return energy
+
+def load_MDA(scannum, mdadirectory, imagedirectory, logdirectory, only3d = False):   
 	print('Reading MDA File')  
 	for f in os.listdir(mdadirectory):
 			if int(f.split('SOFT_')[1][:-4]) == scannum:
@@ -484,7 +752,6 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
 			
 			f.flush()	# write xrf data to disk
 
-
 			if loadimages:
 					numpts = 200
 					twothetaimage = dimages.create_dataset('twotheta', data = np.genfromtxt(twothetaccdpath, delimiter=','))
@@ -501,8 +768,7 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
 					intxrdcounts.attrs['description'] = 'Collapsed, area-integrated diffraction counts.'
 					imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
 					print('Loading Images')
-					# imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
-					imgdata = p.starmap(_loadImage, [(x,) for x in imgpaths])
+					imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
 					d = imgdata[0].shape
 					imgdata = np.array(imgdata).reshape(imnums.shape[0], imnums.shape[1], d[0], d[1])
 
@@ -532,226 +798,3 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
 					#                 xrdcounts[m,n,tidx] = np.sum(im[np.abs(twothetaimage[:]-tt) <= tolerance])
 					#                 intxrdcounts = intxrdcounts + xrdcounts[m,n,tidx]
 	p.close()
-
-class Helper():
-	def __init__(self, rootdirectory):
-		self.rootDirectory = rootdirectory
-		self.mdaDirectory = os.path.join(self.rootDirectory, 'mda')
-		self.h5Directory = os.path.join(self.rootDirectory, 'h5')
-		if not os.path.isdir(self.h5Directory):
-			os.mkdir(self.h5Directory)
-
-		self.logDirectory = os.path.join(self.rootDirectory, 'Logging')
-		self.qmatDirectory = os.path.join(self.logDirectory, 'qmat')
-		# with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
-		# 	self.qmat = json.load(f)
-		self.imageDirectory = os.path.join(self.rootDirectory, 'Images')
-
-	def MDAToH5(self, scannum = None, loadimages = True):
-		print('=== Processing Scan {0} from MDA to H5 ==='.format(scannum))
-		data = LoadMDA(scannum, self.mdaDirectory, self.imageDirectory, self.logDirectory, only3d = True)
-		_MDADataToH5(
-			data,
-			self.h5Directory,
-			self.imageDirectory,
-			os.path.join(self.qmatDirectory, 'twotheta.csv'),
-			os.path.join(self.qmatDirectory, 'gamma.csv'),
-			loadimages = loadimages
-			)
-
-	def Listener(self, functions = ['scan2d']):
-		import epics
-		import epics.devices
-		
-		def findMostRecentScan():
-			fids = os.listdir(self.mdaDirectory)
-			scannums = [int(x.split('SOFT_')[1].split('.mda')[0]) for x in fids]
-			return max(scannums)
-		def lookupScanFunction(scannum):
-			with open(os.path.join(self.logDirectory, 'verboselog.json')) as f:
-				logdata = json.load(f)
-			return f[scannum]['ScanFunction']
-
-		self.lastProcessedScan = 0
-		while True:	#keep running unless manually quit by ctrl-c
-			mostRecentScan = findMostRecentScan()	#get most recent scan number
-			if self.lastProcessedScan < findMostRecentScan: #have we looked at this scan yet?
-				scanFunction = lookupScanFunction(mostRecentScan)	#if not, lets see if its a scan we want to convert to an h5 file
-				if scanFunction in functions:	#if it is one of our target scan types (currently only works on scan2d as of 20191206)
-					if epics.caget("26idc:filter:Fi1:Set") == 0:	#make sure that the scan has completed (currently using filter one being closed as indicator of completed scan)
-						self.MDAToH5(scannum = mostRecentScan)	#if we passed all of that, fit the dataset
-				else:
-					self.lastProcessedScan = mostRecentScan 	#if the scan isnt a fittable type, set the scan number so we dont look at it again
-
-			time.sleep(5)	# check for new files every 5 seconds
-
-	def TwoThetaWaterfall(self, scannum, numtt = 200, timestep = 1, xrdlib = [], hotccdthreshold = np.inf, ax = None):
-		plotAtTheEnd = False
-		if ax is None:
-			fig, ax = plt.subplots(figsize = (8, 4))
-			plotAtTheEnd = True
-
-		with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
-			qmat = json.load(f)
-
-		imdir = os.path.join(self.imageDirectory, str(scannum))
-		imfids = [os.path.join(imdir, x) for x in os.listdir(imdir) if 'Pilatus' in x]	#currently only anticipates Pilatus CCD images
-
-		tt = np.linspace(qmat['twotheta'].min(), qmat['twotheta'].max(), numtt)
-		cts = np.full((len(imfids), numtt), np.nan)
-		time = np.linspace(0, len(imfids))*timestep
-		
-		for idx, fid in tqdm(enumerate(imfids), total = len(imfids), desc = 'Loading Images'):
-			im = np.asarray(PIL.Image.open(fid))
-			if im.max() >= hotccdthreshold:
-				pass
-			else:
-				for ttidx, tt_ in enumerate(tt):
-					mask = np.abs(qmat['twotheta'] - tt_) <= 0.05
-					cts[idx,ttidx] = im[mask].sum()
-		
-		im = ax.imshow(cts, cmap = plt.cm.inferno, extent = [tt[0], tt[-1], time[0], time[-1]], norm = LogNorm(1, np.nanmax(cts))) #aspect = 0.02, 
-		ax.set_aspect('auto')
-		ax.set_xlabel('$2\Theta\ (\degree,10keV)$')
-		ax.set_ylabel('Time (s)')
-		cb = plt.colorbar(im, ax = ax, fraction = 0.03)
-		cb.set_label('Counts (log scale)')
-		ticksize = time.max()/20
-		
-		for idx, xlib_ in enumerate(xrdlib):
-			c = plt.cm.tab10(idx)
-			ax.text(1.0, 0.6 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure)        
-			for p in xlib_['peaks']:
-				if p <= tt.max() and p >= tt.min():
-					ax.plot([p, p], [time[-1] + (0.5*idx)*ticksize, time[-1] + (0.5*(idx) + 0.8) * ticksize], color = c, linewidth = 0.6, clip_on = False)
-		ax.set_clip_on(False)
-		ax.set_ylim((0, time.max()))
-
-		if plotAtTheEnd:
-			plt.plot()
-
-	def SumCCD(scannum, numtt = 200, xrdlib = [], hotccdthreshold = np.inf, ax = None):
-		plotAtTheEnd = False
-		if ax is None:
-			fig, ax = plt.subplots(figsize = (8, 4))
-			plotAtTheEnd = True
-		elif len(ax) != 2:
-			print('Error: If providing axes to plot to, a list of two axes must be provided! Aborting.')
-			return
-
-		with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
-			qmat = json.load(f)
-
-		imdir = os.path.join(rootdir, 'Images', str(scannum))
-		imfids = [os.path.join(imdir, x) for x in os.listdir(imdir) if 'Pilatus' in x] #currently only anticipates Pilatus images
-		
-		for idx, fid in tqdm(enumerate(imfids), total = len(imfids), desc = 'Loading Images'):
-			im = np.asarray(PIL.Image.open(fid))
-			if idx == 0:
-				ccdsum = np.zeros(im.shape)
-			if im.max() < hotccdthreshold:
-				ccdsum += im
-		
-		ax[0].imshow(ccdsum, cmap = plt.cm.gray, norm = LogNorm(0.1, ccdsum.max()))
-		
-		tt = np.linspace(qmat['twotheta'].min(), qmat['twotheta'].max(), numtt)
-		cts = []
-		for idx, tt_ in enumerate(tt):
-			mask = np.abs(qmat['twotheta'] - tt_) <= 0.05
-			cts.append(ccdsum[mask].sum())
-		ax[1].plot(tt, cts)
-		xlim0 = ax[1].get_xlim()
-		ylim0 = ax[1].get_ylim()
-		
-		for idx, xlib_ in tqdm(enumerate(xrdlib), total = len(xrdlib), desc = 'Fitting'):
-			c = plt.cm.tab10(idx)
-	#         ax[0].text(1.0, 1.0 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure) 
-			cmap = colors.ListedColormap([c, c])
-			bounds=[0,1,10]
-			norm = colors.BoundaryNorm(bounds, cmap.N)
-			
-			first = True
-			for p in xlib_['peaks']:            
-				mask = np.abs(qmat['twotheta'] - p) <= 0.05
-				mask = mask.astype(float)*5
-				mask[mask == 0] = np.nan
-	#             cmask = cmask.astype(float)
-	#             cmask[cmask == 0] = np.nan
-	#             mask = np.array([mask*c_ for c_ in c]).reshape(195, 487, 4)
-	#             return mask
-	#             mask[mask == 0] = np.nan
-				ax[0].imshow(mask, cmap = cmap, alpha = 0.4)#, cmap = plt.cm.Reds)
-				if first:
-					ax[1].plot(np.ones((2,))*p, ax[1].get_ylim(), label = xlib_['title'], color = c, linewidth = 0.3, linestyle = ':')
-					first = False
-				else:
-					ax[1].plot(np.ones((2,))*p, ax[1].get_ylim(), color = c, linewidth = 1, linestyle = ':')
-	   
-		ax[1].set_xlim(xlim0)
-		ax[1].set_ylim(ylim0)
-		leg = ax[1].legend(loc = 'upper right')
-		for line in leg.get_lines():
-			line.set_linewidth(2.0)
-			line.set_linestyle('-')
-
-		ax[1].set_xlabel('$2\Theta\ (10keV)$')
-		ax[1].set_ylabel('Counts')
-		ax[0].set_title('Integrated Diffraction, Scan {0}'.format(scannum))
-		
-		if plotAtTheEnd:
-			plt.show()
-
-
-### Helper Functions
-
-def _loadImage(path):
-	im = PIL.Image.open(path)
-	return np.array(im)
-
-def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_size = 5):
-
-	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
-	ccds0[np.isnan(ccds0)] = 0
-	ccds0[np.abs(ccds0) == np.inf] = 0
-	# ccd_thresh = filters.threshold_li(ccds0,tolerance = 0.45) 
-	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
-	mask = ccds0 > 1.5
-	mask_labels = label(mask)
-	# return regionprops(mask_labels, intensity_image = ccds0)
-	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
-
-def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2):
-
-	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
-	ccd_thresh = filters.threshold_li(ccds0, tolerance = 2) 
-	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
-	mask = ccds0 > ccd_thresh
-	mask_labels = label(mask)
-	# return regionprops(mask_labels, intensity_image = ccds0)
-	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
-
-
-def __istarmap(self, func, iterable, chunksize=1):
-	"""starmap-version of imap
-	"""
-	if self._state != mpp.RUN:
-		raise ValueError("Pool not running")
-
-	if chunksize < 1:
-		raise ValueError(
-			"Chunksize must be 1+, not {0:n}".format(
-				chunksize))
-
-	task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
-	result = mpp.IMapIterator(self._cache)
-	self._taskqueue.put(
-		(
-			self._guarded_task_generation(result._job,
-										  mpp.starmapstar,
-										  task_batches),
-			result._set_length
-		))
-	return (item for chunk in result for item in chunk)
-
-
-mpp.Pool.istarmap = __istarmap
