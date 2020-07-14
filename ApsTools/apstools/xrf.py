@@ -10,6 +10,8 @@ packageDir = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(packageDir, 'include', 'xrfEmissionLines.json'), 'r') as f:
 	emissionLines = json.load(f)
 
+### Plotting Functions
+
 def add_XRF_lines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'bottom', tickstagger = 0, ticklength = 0.05):     
     '''
     Given a list of elements, adds tick marks on a matplotlib plot axis indicated xrf emission lines for those elements.
@@ -39,7 +41,7 @@ def add_XRF_lines(elements, ax = None, maxlinesperelement = np.inf, tickloc = 'b
         plotted = 0
         for line in emissionLines[element]['xrfEmissionLines']:
             if (line <= xlim0[1]) and (line >= xlim0[0]):
-#                 plt.plot([line, line], [0.98 - (idx+1)*ticklength, 0.98 - idx*ticklength], transform = trans, color = color, linewidth = 1.5)
+                # plt.plot([line, line], [0.98 - (idx+1)*ticklength, 0.98 - idx*ticklength], transform = trans, color = color, linewidth = 1.5)
                 if tickloc == 'bottom':
                 	plt.plot([line, line], [0.01 + stagger, 0.01 + ticklength + stagger], transform = trans, color = color, linewidth = 1.5)
                 else:
@@ -57,7 +59,7 @@ def scattering_factor(element, energy):
     '''
 
     dataDir = os.path.join(packageDir, 'include', 'scatfacts')
-#     dataElements = [x[:-4] for x in os.listdir(dataDir)]
+    # dataElements = [x[:-4] for x in os.listdir(dataDir)]
 
     fid = os.path.join(dataDir, '{0}.nff'.format(str.lower(element)))
     with open(fid, 'r') as f:
@@ -81,6 +83,7 @@ def molar_mass(element):
                 break
     return molar_mass
 
+### Attenuation, transmission, self-absorption, etc.
 
 def attenuation_coefficient(elements, numElements, density, energy):
     '''
@@ -132,7 +135,12 @@ def transmission(elements, numElements, density, thickness, energy):
 def self_absorption(elements, numElements, density, thickness, incidentenergy, xrfenergy, sampletheta, detectortheta):
     '''
     returns fraction of x-ray fluorescence excited, transmitted through a sample, and reaching to an XRF detector. This
-    calculation assumes no secondary fluorescence/photon recycling. Calculations are defined by:
+    calculation assumes no secondary fluorescence/photon recycling. The returned fraction is the apparent signal after 
+    incident beam attenuation and exit fluorescence attenuation - dividing the measured XRF value by this fraction should
+    approximately correct for self-absorption losses and allow better comparison of fluorescence signals in different energy
+    ranges.
+
+    Calculations are defined by:
 
         elements: list of elements ['Fe', 'Cu']
         numElements: list of numbers corresponding to elemental composition. [1,2] for FeCu2
