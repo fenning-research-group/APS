@@ -15,7 +15,15 @@ from matplotlib.colors import LogNorm
 
 def diffraction_map(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	"""
-	Plots maps of diffraction across map area
+	Plots maps of diffraction intensty across map area, given the following:
+
+		fpath: filepath to daemon-generated H5 file
+		twotheta: 
+					One of the following must be provided. Each would be a list of up to 5 values.
+		q: 
+ 		ax: The matplotlib axis to display to. if none is provided, a new one will be generated
+ 		tol: the tolerance/window size of diffraction signal to count intensity for. (counts intensity at +/- tol). defaults to 2
+
 	"""
 	colors = [plt.cm.Reds, plt.cm.Blues, plt.cm.Greens, plt.cm.Purples, plt.cm.Oranges]
 
