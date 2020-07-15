@@ -762,53 +762,53 @@ def _loadImage(path):
 	im = PIL.Image.open(path)
 	return np.array(im)
 
-# def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_size = 5):
+def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_size = 5):
 
-# 	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
-# 	ccds0[np.isnan(ccds0)] = 0
-# 	ccds0[np.abs(ccds0) == np.inf] = 0
-# 	# ccd_thresh = filters.threshold_li(ccds0,tolerance = 0.45) 
-# 	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
-# 	mask = ccds0 > 1.5
-# 	mask_labels = label(mask)
-# 	# return regionprops(mask_labels, intensity_image = ccds0)
-# 	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
+	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+	ccds0[np.isnan(ccds0)] = 0
+	ccds0[np.abs(ccds0) == np.inf] = 0
+	# ccd_thresh = filters.threshold_li(ccds0,tolerance = 0.45) 
+	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
+	mask = ccds0 > 1.5
+	mask_labels = label(mask)
+	# return regionprops(mask_labels, intensity_image = ccds0)
+	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
 
-# def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2):
+def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2):
 
-# 	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
-# 	ccd_thresh = filters.threshold_li(ccds0, tolerance = 2) 
-# 	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
-# 	mask = ccds0 > ccd_thresh
-# 	mask_labels = label(mask)
-# 	# return regionprops(mask_labels, intensity_image = ccds0)
-# 	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
-
-
-# def __istarmap(self, func, iterable, chunksize=1):
-# 	"""starmap-version of imap
-# 	"""
-# 	if self._state != mpp.RUN:
-# 		raise ValueError("Pool not running")
-
-# 	if chunksize < 1:
-# 		raise ValueError(
-# 			"Chunksize must be 1+, not {0:n}".format(
-# 				chunksize))
-
-# 	task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
-# 	result = mpp.IMapIterator(self._cache)
-# 	self._taskqueue.put(
-# 		(
-# 			self._guarded_task_generation(result._job,
-# 										  mpp.starmapstar,
-# 										  task_batches),
-# 			result._set_length
-# 		))
-# 	return (item for chunk in result for item in chunk)
+	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+	ccd_thresh = filters.threshold_li(ccds0, tolerance = 2) 
+	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
+	mask = ccds0 > ccd_thresh
+	mask_labels = label(mask)
+	# return regionprops(mask_labels, intensity_image = ccds0)
+	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
 
 
-# mpp.Pool.istarmap = __istarmap
+def __istarmap(self, func, iterable, chunksize=1):
+	"""starmap-version of imap
+	"""
+	if self._state != mpp.RUN:
+		raise ValueError("Pool not running")
+
+	if chunksize < 1:
+		raise ValueError(
+			"Chunksize must be 1+, not {0:n}".format(
+				chunksize))
+
+	task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
+	result = mpp.IMapIterator(self._cache)
+	self._taskqueue.put(
+		(
+			self._guarded_task_generation(result._job,
+										  mpp.starmapstar,
+										  task_batches),
+			result._set_length
+		))
+	return (item for chunk in result for item in chunk)
+
+
+mpp.Pool.istarmap = __istarmap
 
 def generate_energy_list(cal_offset = -0.0151744, cal_slope = 0.0103725, cal_quad = 0.00000):
 	energy = [cal_offset + cal_slope*x + cal_quad*x*x for x in range(2048)]
