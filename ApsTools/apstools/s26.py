@@ -289,19 +289,19 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 
 ### scripts for working with Daemon-generated H5 Files
 
-def find_ROIs(scannums, rootdir, bin_size = 2, min_intensity = 3, savedir = None, plot = True):
+def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_distance_threshold = 10, area_threshold = 10, filter_tolerance = 2, savedir = None, plot = True):
 	def scanfid(scannum, filetype = 'h5'):
 		if filetype == 'h5':
-			return (os.path.join(h5dir, '{}{0:04d}.h5'.format(FRG_H5_PREFIX, scannum)))
+			return (os.path.join(h5dir, '{0}{1:04d}.h5'.format(FRG_H5_PREFIX, scannum)))
 		elif filetype == 'mda':
 			return (os.path.join(mdadir, '26idbSOFT_{0:04d}.mda'.format(scannum)))
 
-	def updateRegions(r, regions, centroid_distance_threshold = 10):
+	def updateRegions(r, regions, centroid_distance_threshold = centroid_distance_threshold):
 		for ridx, r_ in enumerate(regions):
 			if np.linalg.norm([a - b for a,b in zip(r.centroid, r_.centroid)]) <= centroid_distance_threshold: #euclidean dsitance - centroids are close enough that we are assuming these regions are the same
-				if r.solidity > r_.solidity:   #the diffraction at this point is a better representation of diffraction region on ccd
+				if r.mean_intensity > r_.mean_intensity:   #the diffraction at this point is a better representation of diffraction region on ccd
 					regions[ridx] = r
-					return regions
+				return regions
 		#if we make it here, we have a new region
 		regions.append(r)
 		return regions
@@ -342,7 +342,7 @@ def find_ROIs(scannums, rootdir, bin_size = 2, min_intensity = 3, savedir = None
 			m = m + bin_size
 		# iterable = [(x[0], x[1]) for x in np.ndindex(ccds.shape[1]-bin_size, ccds.shape[2]-bin_size)]
 		# iterable = [(x[0], x[1]) for x in np.ndindex(2,2)]
-		for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = 2, bin_size = bin_size, min_intensity = min_intensity), iterable, chunksize = 150), total=len(iterable)):
+		for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
 			# if type(r) is not list:
 			# 	r = [r]
 			# 	for r_ in r:
@@ -355,7 +355,7 @@ def find_ROIs(scannums, rootdir, bin_size = 2, min_intensity = 3, savedir = None
 		if type(rs) is not list:
 			rs = [rs]
 		for r in rs:
-			if r.area >= 10:
+			if r.area >= area_threshold:
 				updateRegions(r, regions)
 
 	if plot:
@@ -774,10 +774,10 @@ def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_
 	# return regionprops(mask_labels, intensity_image = ccds0)
 	return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
 
-def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2):
+def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2, tolerance = 2):
 
 	ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
-	ccd_thresh = filters.threshold_li(ccds0, tolerance = 2) 
+	ccd_thresh = filters.threshold_li(ccds0, tolerance = tolerance) 
 	# ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
 	mask = ccds0 > ccd_thresh
 	mask_labels = label(mask)
@@ -877,7 +877,7 @@ def load_MDA(scannum, mdadirectory, imagedirectory, logdirectory, only3d = False
 def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpath, loadimages = True):
 	p = mp.Pool(mp.cpu_count())
 	# p = mp.Pool(4)
-	filepath = os.path.join(h5directory, '{}{0:04d}.h5'.format(FRG_H5_PREFIX, data['scan']))
+	filepath = os.path.join(h5directory, '{0}{1:04d}.h5'.format(FRG_H5_PREFIX, data['scan']))
 	with h5py.File(filepath, 'w') as f:
 			
 			info = f.create_group('/info')
