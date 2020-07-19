@@ -249,7 +249,7 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 				headaxislength = 2,
 				headwidth = 6
 				)
-		frgplt.Scalebar(ax[0][1], 1e-6, box_color = [0,0,0], box_alpha = 0.8, pad = 0.3)
+		frgplt.scalebar(ax[0][1], 1e-6, box_color = [0,0,0], box_alpha = 0.8, pad = 0.3)
 		ax[0][1].set_xticks([])
 		ax[0][1].set_yticks([])
 
@@ -291,7 +291,7 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 
 ### scripts for working with Daemon-generated H5 Files
 
-def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_distance_threshold = 10, area_threshold = 10, filter_tolerance = 2, savedir = None, plot = True):
+def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_distance_threshold = 10, area_threshold = 10, filter_tolerance = 2, savedir = None, plot = True, log = False):
 	def scanfid(scannum, filetype = 'h5'):
 		if filetype == 'h5':
 			return (os.path.join(h5dir, '{0}{1:04d}.h5'.format(FRG_H5_PREFIX, scannum)))
@@ -344,13 +344,22 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
 			m = m + bin_size
 		# iterable = [(x[0], x[1]) for x in np.ndindex(ccds.shape[1]-bin_size, ccds.shape[2]-bin_size)]
 		# iterable = [(x[0], x[1]) for x in np.ndindex(2,2)]
-		for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
-			# if type(r) is not list:
-			# 	r = [r]
-			# 	for r_ in r:
-			# 		if r_.area >= 10:
-			# 			updateRegions(r_, regions)
-			allregions.append(r)
+		if log:
+			for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = np.log(ccds.sum(0)), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
+				# if type(r) is not list:
+				# 	r = [r]
+				# 	for r_ in r:
+				# 		if r_.area >= 10:
+				# 			updateRegions(r_, regions)
+				allregions.append(r)
+		else:
+			for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
+				# if type(r) is not list:
+				# 	r = [r]
+				# 	for r_ in r:
+				# 		if r_.area >= 10:
+				# 			updateRegions(r_, regions)
+				allregions.append(r)
 
 	regions = []
 	for rs in tqdm(allregions):
@@ -390,11 +399,11 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
 	df['summed_max_intensity'] = df['bbox'].apply(summedintensity)	
 
 	def meanintensity(bbox):
-    	cts = summedccd[
-        	bbox[0]:bbox[2],
-        	bbox[1]:bbox[3]
-    	].mean()
-    	return cts
+		cts = summedccd[
+			bbox[0]:bbox[2],
+			bbox[1]:bbox[3]
+		].mean()
+		return cts
 	df['summed_mean_intensity'] = df['bbox'].apply(summedintensity)	
 
 	df.sort_values(['summed_max_intensity','summed_mean_intensity', 'max_intensity', 'area'], inplace = True, ascending = False)
