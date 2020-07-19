@@ -19,7 +19,7 @@ from functools import partial
 import skimage.filters as filters
 from skimage.measure import label, regionprops
 import PIL
-
+import pandas as pd
 
 FRG_H5_PREFIX = '26idbSOFT_FRG_'
 
@@ -370,10 +370,26 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
 		plt.imshow(roiimg, cmap = plt.cm.nipy_spectral)
 		plt.title('{} Regions Identified'.format(len(regions)))
 		plt.show()
+
+	columns = [x for x in dir(regions[0]) if not x.startswith('_')]
+	dfData = {c:[] for c in columns}
+	for r in regions:
+    	for c in columns:
+        	dfData[c].append(getattr(r,c))
+	df = pd.DataFrame(dfData)
+	
+	summedccd = ccds.sum(axis = (0,1,2))
+	def summedintensity(bbox):
+    	cts = summedccd[
+        	bbox[0]:bbox[2],
+        	bbox[1]:bbox[3]
+    	].sum()
+    	return cts
+	df['summed_max_intensity'] = df['bbox'].apply(summedintensity)	
+
+	df.sort_values(['summed_max_intensity','mean_intensity', 'max_intensity', 'area'], inplace = True, ascending = False)
+
 	return regions, ccds
-	# print('Saving to {0}'.format(savedir))
-	# with open(savedir, 'wb') as f:
-	# 	pickle.dump(allregions, f)
 
 def diffraction_map(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	"""
@@ -636,124 +652,6 @@ class Daemon():
 
 			time.sleep(5)	# check for new files every 5 seconds
 
-
-	### Plotting functions - should be moved outside of Daemon object
-
-	def TwoThetaWaterfall(self, scannum, numtt = 200, timestep = 1, xrdlib = [], hotccdthreshold = np.inf, ax = None):
-		plotAtTheEnd = False
-		if ax is None:
-			fig, ax = plt.subplots(figsize = (8, 4))
-			plotAtTheEnd = True
-
-		with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
-			qmat = json.load(f)
-
-		imdir = os.path.join(self.imageDirectory, str(scannum))
-		imfids = [os.path.join(imdir, x) for x in os.listdir(imdir) if 'Pilatus' in x]	#currently only anticipates Pilatus CCD images
-
-		tt = np.linspace(qmat['twotheta'].min(), qmat['twotheta'].max(), numtt)
-		cts = np.full((len(imfids), numtt), np.nan)
-		time = np.linspace(0, len(imfids))*timestep
-		
-		for idx, fid in tqdm(enumerate(imfids), total = len(imfids), desc = 'Loading Images'):
-			im = np.asarray(PIL.Image.open(fid))
-			if im.max() >= hotccdthreshold:
-				pass
-			else:
-				for ttidx, tt_ in enumerate(tt):
-					mask = np.abs(qmat['twotheta'] - tt_) <= 0.05
-					cts[idx,ttidx] = im[mask].sum()
-		
-		im = ax.imshow(cts, cmap = plt.cm.inferno, extent = [tt[0], tt[-1], time[0], time[-1]], norm = LogNorm(1, np.nanmax(cts))) #aspect = 0.02, 
-		ax.set_aspect('auto')
-		ax.set_xlabel('$2\Theta\ (\degree,10keV)$')
-		ax.set_ylabel('Time (s)')
-		cb = plt.colorbar(im, ax = ax, fraction = 0.03)
-		cb.set_label('Counts (log scale)')
-		ticksize = time.max()/20
-		
-		for idx, xlib_ in enumerate(xrdlib):
-			c = plt.cm.tab10(idx)
-			ax.text(1.0, 0.6 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure)        
-			for p in xlib_['peaks']:
-				if p <= tt.max() and p >= tt.min():
-					ax.plot([p, p], [time[-1] + (0.5*idx)*ticksize, time[-1] + (0.5*(idx) + 0.8) * ticksize], color = c, linewidth = 0.6, clip_on = False)
-		ax.set_clip_on(False)
-		ax.set_ylim((0, time.max()))
-
-		if plotAtTheEnd:
-			plt.plot()
-
-	def SumCCD(self, scannum, numtt = 200, xrdlib = [], hotccdthreshold = np.inf, ax = None):
-		plotAtTheEnd = False
-		if ax is None:
-			fig, ax = plt.subplots(figsize = (8, 4))
-			plotAtTheEnd = True
-		elif len(ax) != 2:
-			print('Error: If providing axes to plot to, a list of two axes must be provided! Aborting.')
-			return
-
-		with open(os.path.join(self.qmatDirectory, 'qmat.json'), 'r') as f:
-			qmat = json.load(f)
-
-		imdir = os.path.join(rootdir, 'Images', str(scannum))
-		imfids = [os.path.join(imdir, x) for x in os.listdir(imdir) if 'Pilatus' in x] #currently only anticipates Pilatus images
-		
-		for idx, fid in tqdm(enumerate(imfids), total = len(imfids), desc = 'Loading Images'):
-			im = np.asarray(PIL.Image.open(fid))
-			if idx == 0:
-				ccdsum = np.zeros(im.shape)
-			if im.max() < hotccdthreshold:
-				ccdsum += im
-		
-		ax[0].imshow(ccdsum, cmap = plt.cm.gray, norm = LogNorm(0.1, ccdsum.max()))
-		
-		tt = np.linspace(qmat['twotheta'].min(), qmat['twotheta'].max(), numtt)
-		cts = []
-		for idx, tt_ in enumerate(tt):
-			mask = np.abs(qmat['twotheta'] - tt_) <= 0.05
-			cts.append(ccdsum[mask].sum())
-		ax[1].plot(tt, cts)
-		xlim0 = ax[1].get_xlim()
-		ylim0 = ax[1].get_ylim()
-		
-		for idx, xlib_ in tqdm(enumerate(xrdlib), total = len(xrdlib), desc = 'Fitting'):
-			c = plt.cm.tab10(idx)
-			# ax[0].text(1.0, 1.0 - idx*0.05, xlib_['title'], color = c, transform = fig.transFigure) 
-			cmap = colors.ListedColormap([c, c])
-			bounds=[0,1,10]
-			norm = colors.BoundaryNorm(bounds, cmap.N)
-			
-			first = True
-			for p in xlib_['peaks']:            
-				mask = np.abs(qmat['twotheta'] - p) <= 0.05
-				mask = mask.astype(float)*5
-				mask[mask == 0] = np.nan
-	            # cmask = cmask.astype(float)
-	            # cmask[cmask == 0] = np.nan
-	            # mask = np.array([mask*c_ for c_ in c]).reshape(195, 487, 4)
-	            # return mask
-	            # mask[mask == 0] = np.nan
-				ax[0].imshow(mask, cmap = cmap, alpha = 0.4)#, cmap = plt.cm.Reds)
-				if first:
-					ax[1].plot(np.ones((2,))*p, ax[1].get_ylim(), label = xlib_['title'], color = c, linewidth = 0.3, linestyle = ':')
-					first = False
-				else:
-					ax[1].plot(np.ones((2,))*p, ax[1].get_ylim(), color = c, linewidth = 1, linestyle = ':')
-	   
-		ax[1].set_xlim(xlim0)
-		ax[1].set_ylim(ylim0)
-		leg = ax[1].legend(loc = 'upper right')
-		for line in leg.get_lines():
-			line.set_linewidth(2.0)
-			line.set_linestyle('-')
-
-		ax[1].set_xlabel('$2\Theta\ (10keV)$')
-		ax[1].set_ylabel('Counts')
-		ax[0].set_title('Integrated Diffraction, Scan {0}'.format(scannum))
-		
-		if plotAtTheEnd:
-			plt.show()
 
 
 ### Helper Functions
