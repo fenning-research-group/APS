@@ -374,22 +374,22 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
 	columns = [x for x in dir(regions[0]) if not x.startswith('_')]
 	dfData = {c:[] for c in columns}
 	for r in regions:
-    	for c in columns:
-        	dfData[c].append(getattr(r,c))
+		for c in columns:
+			dfData[c].append(getattr(r,c))
 	df = pd.DataFrame(dfData)
 	
 	summedccd = ccds.sum(axis = (0,1,2))
 	def summedintensity(bbox):
-    	cts = summedccd[
-        	bbox[0]:bbox[2],
-        	bbox[1]:bbox[3]
-    	].sum()
-    	return cts
+		cts = summedccd[
+			bbox[0]:bbox[2],
+			bbox[1]:bbox[3]
+		].sum()
+		return cts
 	df['summed_max_intensity'] = df['bbox'].apply(summedintensity)	
 
 	df.sort_values(['summed_max_intensity','mean_intensity', 'max_intensity', 'area'], inplace = True, ascending = False)
 
-	return regions, ccds
+	return df, ccds
 
 def diffraction_map(fpath, twotheta = None, q = None, ax = None, tol = 2):
 	"""
@@ -399,8 +399,8 @@ def diffraction_map(fpath, twotheta = None, q = None, ax = None, tol = 2):
 		twotheta: 
 					One of the following must be provided. Each would be a list of up to 5 values.
 		q: 
- 		ax: The matplotlib axis to display to. if none is provided, a new one will be generated
- 		tol: the tolerance/window size of diffraction signal to count intensity for. (counts intensity at +/- tol). defaults to 2
+		ax: The matplotlib axis to display to. if none is provided, a new one will be generated
+		tol: the tolerance/window size of diffraction signal to count intensity for. (counts intensity at +/- tol). defaults to 2
 
 	"""
 	colors = [plt.cm.Reds, plt.cm.Blues, plt.cm.Greens, plt.cm.Purples, plt.cm.Oranges]
@@ -559,11 +559,11 @@ class RawDataHelper():
 				mask = np.abs(qmat['twotheta'] - p) <= 0.05
 				mask = mask.astype(float)*5
 				mask[mask == 0] = np.nan
-	            # cmask = cmask.astype(float)
-	            # cmask[cmask == 0] = np.nan
-	            # mask = np.array([mask*c_ for c_ in c]).reshape(195, 487, 4)
-	            # return mask
-	            # mask[mask == 0] = np.nan
+				# cmask = cmask.astype(float)
+				# cmask[cmask == 0] = np.nan
+				# mask = np.array([mask*c_ for c_ in c]).reshape(195, 487, 4)
+				# return mask
+				# mask[mask == 0] = np.nan
 				ax[0].imshow(mask, cmap = cmap, alpha = 0.4)#, cmap = plt.cm.Reds)
 				if first:
 					ax[1].plot(np.ones((2,))*p, ax[1].get_ylim(), label = xlib_['title'], color = c, linewidth = 0.3, linestyle = ':')
