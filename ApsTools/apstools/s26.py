@@ -187,6 +187,8 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 	tiltx -= np.nanmean(tiltx)
 	tilty -= np.nanmean(tilty)
 
+
+
 	dataout = {
 		'q': np.array([qxc_r, qyc_r, qzc_r, qmagc]),
 		'q_raw': np.array([qxc, qyc, qzc, qmagc]),
@@ -387,7 +389,15 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
 		return cts
 	df['summed_max_intensity'] = df['bbox'].apply(summedintensity)	
 
-	df.sort_values(['summed_max_intensity','mean_intensity', 'max_intensity', 'area'], inplace = True, ascending = False)
+	def meanintensity(bbox):
+    	cts = summedccd[
+        	bbox[0]:bbox[2],
+        	bbox[1]:bbox[3]
+    	].mean()
+    	return cts
+	df['summed_mean_intensity'] = df['bbox'].apply(summedintensity)	
+
+	df.sort_values(['summed_max_intensity','summed_mean_intensity', 'max_intensity', 'area'], inplace = True, ascending = False)
 
 	return df, ccds
 
