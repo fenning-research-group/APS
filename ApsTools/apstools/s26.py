@@ -72,7 +72,7 @@ def twotheta_adjust(twotheta, energy, energy0 = None):
 
 
 ### scripts for rocking curve analysis
-def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_ROI = [0, 0, None, None], plot = True, extent = None, min_counts = 50, stream = False, savepath = None):
+def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_ROI = [0, 0, None, None], plot = True, extent = None, min_counts = 50, stream = False, savepath = None, geometry = 'bragg'):
 	"""
 	Given Pilatus ccds, a realspace ROI, and reciprocal space ROI, qmat, fits a rocking curve
 
@@ -81,6 +81,7 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 	real_ROI: bounds in realspace map coordinates to process rocking curve. This should isolate the sample region of interest [ymin, xmin, ymax, xmax]
 	reciprocal_ROI: bounds in detector CCD to process rocking curve. This should isolate the diffraction spot of interest [ymin, xmin, ymax, xmax]
 	min_counts: threshold counts. Pixels with total counts below this value across the sum of all maps are ignored as nan.
+	geometry: enter 'bragg' or 'laue', affects the tilt calculation
 
 	plot: boolean flag to determine whether plots are generated
 	savepath: filepath to save plot images to
@@ -95,6 +96,10 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 	mask = ROIccds.sum(4).sum(3).sum(0) <= min_counts	#any points on map without sufficient counts in reciprocal ROI are excluded from fit
 	ROIccds[:,mask] = np.nan 
 	sumROIccds = ROIccds.sum(axis = 0)	#total counts per realspace point over all unmasked realspace points
+	if extent[0] < extent[1]: #hybridx scanned such that map is flipped from realspace
+		ccds = ccds[:,:,::-1]
+	if extent[3] < extent[2]: #hybridy scanned such that map is flipped from realspace
+		ccds = ccds[:,::-1]
 
 	### Initialize data vectors
 	# hold q vector centroids from rocking curve fitting
@@ -165,7 +170,14 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 
 
 	u = []
-	v = [0,0,1]	#adjust so mean q vector is parallel to [001] lattice vector
+	if str.lower(geometry) == 'bragg':
+		v = [0,0,1]	#adjust so mean q vector is parallel to [001] lattice vector (assuming Bragg!)
+	elif str.lower(geometry) == 'laue':
+		v = [0,0,-1]
+	else:
+		print('Invalid geometry provided - must be \'bragg\' or \'laue\'. Assuming bragg for now, tilt values may be incorrect.')
+		v = [0,0,1]
+
 	for q_ in [qxc, qyc, qzc]:
 		u.append(np.nanmean(q_))
 	u = u / np.linalg.norm(u)
@@ -182,11 +194,10 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 				q_[m,n] = v_
 
 	#calculate tilt angles from qx/qy
-	tiltx = 180*np.arcsin(qxc_r/qmagc)/np.pi
-	tilty = 180*np.arcsin(qyc_r/qmagc)/np.pi
+	tiltx = 180*np.arcsin(qxc_r/qzc_r)/np.pi
+	tilty = 180*np.arcsin(qyc_r/qzc_r)/np.pi
 	tiltx -= np.nanmean(tiltx)
 	tilty -= np.nanmean(tilty)
-
 
 
 	dataout = {
@@ -197,14 +208,18 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 		'tiltx': tiltx,
 		'tilty': tilty,
 		'd': 2*np.pi/qmagc,
-		'peaksamth': peaksamth
+		'peaksamth': peaksamth,
+		'extent': extent,
+		'geometry': str.lower(geometry),
+		'summedccd': ccdsum,
+		'ccdroi': reciprocal_ROI
 	}
 
 	if plot is True or savepath is not None:
 		if extent is None:
-			extent = [0, 0, ROIccds.shape[1], ROIccds.shape[2]]
-		extent[1] *= -ROIccds.shape[1]/(ccds.shape[1]-1)
-		extent[3] *= -ROIccds.shape[2]/(ccds.shape[2]-1)
+			extent = [0, ROIccds.shape[2], 0,ROIccds.shape[1]]
+		#extent[1] *= -ROIccds.shape[1]/(ccds.shape[1]-1)
+		#extent[3] *= -ROIccds.shape[2]/(ccds.shape[2]-1)
 		
 		# fig, ax = plt.subplots(2,2, figsize = (12,6))
 		# ax = np.transpose(ax)
@@ -219,8 +234,8 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 
 
 
-		im = ax[0][1].imshow(dataout['d'], extent = extent, cmap = cmocean.cm.curl)# cmap = plt.cm.RdBu)
-		xv, yv = np.meshgrid(np.linspace(extent[0], extent[1], tiltx.shape[1]), np.linspace(extent[3], extent[2], tiltx.shape[0]))
+		im = ax[0][1].imshow(dataout['d'], extent = extent, cmap = cmocean.cm.curl, origin = 'lower')# cmap = plt.cm.RdBu)
+		xv, yv = np.meshgrid(np.linspace(extent[0], extent[1], tiltx.shape[1]), np.linspace(extent[2], extent[3], tiltx.shape[0]))
 		if stream:
 			xlim0 = ax[0][1].get_xlim()
 			ylim0 = ax[0][1].get_ylim()
@@ -258,7 +273,7 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 		cb.set_label('$d\ (\AA)$')
 		ax[0][1].set_title('Rocking Curve Fitted')
 
-		im = ax[0][0].imshow(peaksamth, cmap = plt.cm.coolwarm, vmin = thvals[0], vmax = thvals[-1])
+		im = ax[0][0].imshow(peaksamth, cmap = plt.cm.coolwarm, vmin = thvals[0], vmax = thvals[-1], origin = 'lower')
 		cb = plt.colorbar(im, ax = ax[0][0], fraction = 0.036)
 		cb.set_label('Peak Samth')
 		ax[0][0].set_title('Rocking Curve Peak (Gray = Good)')

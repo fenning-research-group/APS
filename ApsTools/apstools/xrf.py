@@ -158,7 +158,7 @@ def self_absorption(elements, numElements, density, thickness, incidentenergy, x
     incidentTheta = sampletheta
     exitTheta = detectortheta - sampletheta
 
-    c = (incidentAttCoeff/np.cos(np.deg2rad(incidentTheta))) + (exitAttCoeff/np.cos(np.deg2rad(exitTheta)))
+    c = np.abs((incidentAttCoeff/np.cos(np.deg2rad(incidentTheta)))) + np.abs((exitAttCoeff/np.cos(np.deg2rad(exitTheta))))
 
     xrfFraction = (1/thickness) * (1/c) * (1 - np.exp(-c * thickness))
 
