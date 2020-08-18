@@ -18,9 +18,9 @@ import multiprocessing.pool as mpp
 from functools import partial
 import skimage.filters as filters
 from skimage.measure import label, regionprops
-import PIL
+from PIL import Image
 import pandas as pd
-
+from .helpers import _load_image_rek
 FRG_H5_PREFIX = '26idbSOFT_FRG_'
 
 ### convenience functions
@@ -642,7 +642,7 @@ class Daemon():
 		# 	self.qmat = json.load(f)
 		self.imageDirectory = os.path.join(self.rootDirectory, 'Images')
 
-		self.Listener() #start the daemon
+		#self.Listener() #start the daemon
 
 	def MDAToH5(self, scannum = None, loadimages = True):
 		print('=== Processing Scan {0} from MDA to H5 ==='.format(scannum))
@@ -689,10 +689,6 @@ class Daemon():
 
 
 ### Helper Functions
-
-def _loadImage(path):
-	im = PIL.Image.open(path)
-	return np.array(im)
 
 def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_size = 5):
 
@@ -812,80 +808,88 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
 	filepath = os.path.join(h5directory, '{0}{1:04d}.h5'.format(FRG_H5_PREFIX, data['scan']))
 	with h5py.File(filepath, 'w') as f:
 			
-			info = f.create_group('/info')
-			info.attrs['description'] = 'Metadata describing scan parameters, sample, datetime, etc.'
-			temp = info.create_dataset('scan', data = data['scan'])
-			temp.attrs['description'] = 'Scan number'
-			temp = info.create_dataset('ndim', data = data['ndim'])
-			temp.attrs['description'] = 'Number of dimensions in scan dataset'
+		info = f.create_group('/info')
+		info.attrs['description'] = 'Metadata describing scan parameters, sample, datetime, etc.'
+		temp = info.create_dataset('scan', data = data['scan'])
+		temp.attrs['description'] = 'Scan number'
+		temp = info.create_dataset('ndim', data = data['ndim'])
+		temp.attrs['description'] = 'Number of dimensions in scan dataset'
+		temp = info.create_dataset('x', data = data['positioners']['values'][1])
+		temp.attrs['description'] = 'inner loop coordinates'
+		temp.attrs['name'] = data['positioners']['names'][1]
+		temp = info.create_dataset('y', data = data['positioners']['values'][0])
+		temp.attrs['description'] = 'outer loop coordinates'
+		temp.attrs['name'] = data['positioners']['names'][0]
 
-			dimages = f.create_group('/xrd/im')
-			dimages.attrs['description'] = 'Contains diffraction detector images.'
-			dpatterns = f.create_group('/xrd/pat')
-			dpatterns.attrs['description'] = 'Contains diffraction data, collapsed to twotheta vs counts. Note that twotheta values depend on incident beam energy!'
+		dimages = f.create_group('/xrd/im')
+		dimages.attrs['description'] = 'Contains diffraction detector images.'
+		dpatterns = f.create_group('/xrd/pat')
+		dpatterns.attrs['description'] = 'Contains diffraction data, collapsed to twotheta vs counts. Note that twotheta values depend on incident beam energy!'
 
-			xrf = f.create_group('/xrf')
-			xrf.attrs['description'] = 'Contains fluorescence data from both single element (mca8) and four-element (mca0-3) detectors.'
+		xrf = f.create_group('/xrf')
+		xrf.attrs['description'] = 'Contains fluorescence data from both single element (mca8) and four-element (mca0-3) detectors.'
 
-			detectorlist = [x.encode('utf-8') for x in data['xrfraw'].keys()]
-			detectorname = xrf.create_dataset('names', data = detectorlist)
-			detectorname.attrs['description'] = 'Names of detectors. mca8 = single element, mca0-3 = individual elements on 4 element detector'
+		detectorlist = [x.encode('utf-8') for x in data['xrfraw'].keys()]
+		detectorname = xrf.create_dataset('names', data = detectorlist)
+		detectorname.attrs['description'] = 'Names of detectors. mca8 = single element, mca0-3 = individual elements on 4 element detector'
 
-			energydata = np.array([np.array(x['energy']) for _,x in data['xrfraw'].items()])
-			energy = xrf.create_dataset('e', data = energydata)
-			energy.attrs['description'] = 'Energy scale for each detector, based on cal_offset, cal_slope, and cal_quad provided during file compilation.'
+		energydata = np.array([np.array(x['energy']) for _,x in data['xrfraw'].items()])
+		energy = xrf.create_dataset('e', data = energydata)
+		energy.attrs['description'] = 'Energy scale for each detector, based on cal_offset, cal_slope, and cal_quad provided during file compilation.'
 
-			xrfcounts = xrf.create_dataset('cts', data = np.array([x['counts'] for _,x in data['xrfraw'].items()]), chunks = True, compression = "gzip")
-			xrfcounts.attrs['description'] = 'Array of 2-d arrays of counts, for each detector at each scan point (numdet * xpts * ypts * 2048)'
-			
-			intxrfcounts = xrf.create_dataset('intcts', data = np.sum(np.sum(xrfcounts, axis = 1), axis = 1))
-			intxrfcounts.attrs['description'] = 'Array of area-integrated fluorescence counts for each detector'
-			
-			f.flush()	# write xrf data to disk
+		xrfcounts = xrf.create_dataset('cts', data = np.array([x['counts'] for _,x in data['xrfraw'].items()]), chunks = True, compression = "gzip")
+		xrfcounts.attrs['description'] = 'Array of 2-d arrays of counts, for each detector at each scan point (numdet * xpts * ypts * 2048)'
+		
+		intxrfcounts = xrf.create_dataset('intcts', data = np.sum(np.sum(xrfcounts, axis = 1), axis = 1))
+		intxrfcounts.attrs['description'] = 'Array of area-integrated fluorescence counts for each detector'
+		
+		f.flush()	# write xrf data to disk
 
-			if loadimages:
-					numpts = 200
-					twothetaimage = dimages.create_dataset('twotheta', data = np.genfromtxt(twothetaccdpath, delimiter=','))
-					twothetaimage.attrs['description'] = 'Map correlating two-theta values to each pixel on diffraction ccd'
-					temp = dimages.create_dataset('gamma', data = np.genfromtxt(gammaccdpath, delimiter=','))
-					temp.attrs['description'] = 'Map correlating gamma values to each pixel on diffraction ccd'
-					tolerance = (twothetaimage[:].max()-twothetaimage[:].min()) / numpts
-					interp_twotheta = dpatterns.create_dataset('twotheta', data = np.linspace(twothetaimage[:].min()+tolerance/2, twothetaimage[:].max()-tolerance/2, numpts))
-					interp_twotheta.attrs['description'] = 'Twotheta values onto which ccd pixel intensities are collapsed.'
-					imnums = data['mda_index']-1      #files are saved offset by 1 for some reason
-					xrdcounts = dpatterns.create_dataset('cts', data = np.zeros((imnums.shape[0], imnums.shape[1], numpts)), chunks = True)
-					xrdcounts.attrs['description'] = 'Collapsed diffraction counts for each scan point.'
-					intxrdcounts = dpatterns.create_dataset('intcts', data = np.zeros((numpts,)))
-					intxrdcounts.attrs['description'] = 'Collapsed, area-integrated diffraction counts.'
-					imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
-					print('Loading Images')
-					imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
-					d = imgdata[0].shape
-					imgdata = np.array(imgdata).reshape(imnums.shape[0], imnums.shape[1], d[0], d[1])
+		if loadimages:
+				numpts = 200
+				twothetaimage = dimages.create_dataset('twotheta', data = np.genfromtxt(twothetaccdpath, delimiter=','))
+				twothetaimage.attrs['description'] = 'Map correlating two-theta values to each pixel on diffraction ccd'
+				temp = dimages.create_dataset('gamma', data = np.genfromtxt(gammaccdpath, delimiter=','))
+				temp.attrs['description'] = 'Map correlating gamma values to each pixel on diffraction ccd'
+				tolerance = (twothetaimage[:].max()-twothetaimage[:].min()) / numpts
+				interp_twotheta = dpatterns.create_dataset('twotheta', data = np.linspace(twothetaimage[:].min(), twothetaimage[:].max(), numpts))
+				interp_twotheta.attrs['description'] = 'Twotheta values onto which ccd pixel intensities are collapsed.'
+				imnums = data['mda_index']-1      #files are saved offset by 1 for some reason
+				xrdcounts = dpatterns.create_dataset('cts', data = np.zeros((imnums.shape[0], imnums.shape[1], numpts)), chunks = True)
+				xrdcounts.attrs['description'] = 'Collapsed diffraction counts for each scan point.'
+				intxrdcounts = dpatterns.create_dataset('intcts', data = np.zeros((numpts,)))
+				intxrdcounts.attrs['description'] = 'Collapsed, area-integrated diffraction counts.'
+				imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1:05d}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
+				print('Loading Images')
+				# print(imgpaths)
+				# imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
+				imgdata = p.starmap(_load_image_rek, [(x,) for x in imgpaths])
+				d = imgdata[0].shape
+				imgdata = np.array(imgdata).reshape(imnums.shape[0], imnums.shape[1], d[0], d[1])
 
-					images = dimages.create_dataset('ccd', data = imgdata, compression = 'gzip', chunks = True)
-					print('Fitting twotheta')
+				images = dimages.create_dataset('ccd', data = imgdata, compression = 'gzip', chunks = True)
+				print('Fitting twotheta')
 
-					f.flush()
-					ttmask = [np.abs(twothetaimage - tt_) <= tolerance for tt_ in interp_twotheta]
+				f.flush()
+				ttmask = [np.abs(twothetaimage - tt_) <= tolerance for tt_ in interp_twotheta]
 
-					for m,n in tqdm(np.ndindex(imnums.shape), total = imnums.shape[0] * imnums.shape[1]):
-						# for tidx, tt in enumerate(interp_twotheta):
-							# im = imgdata[m,n]
-							# xrdcounts[m,n,tidx] = np.sum(im[np.abs(twothetaimage[:]-tt) <= tolerance])	#add diffraction from all points where twotheta falls within tolerance
-						xrdcounts[m,n] = p.starmap(np.sum, [(imgdata[m,n][ttmask_],) for ttmask_ in ttmask])
-					intxrdcounts[()] = xrdcounts[()].sum(axis=0).sum(axis=0)	#sum across map dimensions
+				for m,n in tqdm(np.ndindex(imnums.shape), total = imnums.shape[0] * imnums.shape[1]):
+					# for tidx, tt in enumerate(interp_twotheta):
+						# im = imgdata[m,n]
+						# xrdcounts[m,n,tidx] = np.sum(im[np.abs(twothetaimage[:]-tt) <= tolerance])	#add diffraction from all points where twotheta falls within tolerance
+					xrdcounts[m,n] = p.starmap(np.sum, [(imgdata[m,n][ttmask_],) for ttmask_ in ttmask])
+				intxrdcounts[()] = xrdcounts[()].sum(axis=0).sum(axis=0)	#sum across map dimensions
 
-					# images = None
-					# for m, n in np.ndindex(imnums.shape):
-					#         impath = os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(imnums[m,n])))
-					#         im = cv2.imread(impath, -1)
-					#         if images is None:
-					#                 images = dimages.create_dataset('ccd', (imnums.shape[0], imnums.shape[1], im.shape[0], im.shape[1]), compression = "gzip", chunks = True)
-					#                 images.attrs['description'] = 'Raw ccd images for each scan point.'
-					#                 # images = [[None for n in range(imnums.shape[1])] for m in range(imnums.shape[0])]
-					#         images[m,n,:,:] = im
-					#         for tidx, tt in enumerate(interp_twotheta):
-					#                 xrdcounts[m,n,tidx] = np.sum(im[np.abs(twothetaimage[:]-tt) <= tolerance])
-					#                 intxrdcounts = intxrdcounts + xrdcounts[m,n,tidx]
+				# images = None
+				# for m, n in np.ndindex(imnums.shape):
+				#         impath = os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1}.tif'.format(data['scan'], int(imnums[m,n])))
+				#         im = cv2.imread(impath, -1)
+				#         if images is None:
+				#                 images = dimages.create_dataset('ccd', (imnums.shape[0], imnums.shape[1], im.shape[0], im.shape[1]), compression = "gzip", chunks = True)
+				#                 images.attrs['description'] = 'Raw ccd images for each scan point.'
+				#                 # images = [[None for n in range(imnums.shape[1])] for m in range(imnums.shape[0])]
+				#         images[m,n,:,:] = im
+				#         for tidx, tt in enumerate(interp_twotheta):
+				#                 xrdcounts[m,n,tidx] = np.sum(im[np.abs(twothetaimage[:]-tt) <= tolerance])
+				#                 intxrdcounts = intxrdcounts + xrdcounts[m,n,tidx]
 	p.close()
