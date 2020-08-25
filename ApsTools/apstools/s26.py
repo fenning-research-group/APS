@@ -321,7 +321,7 @@ def overlay_ccd_angles(calibration_image, levels, label_levels = None, ax = None
         alpha = 0.6,
         linestyles = 'solid'
         )
-    for k,v in contour_kwargs:
+    for k,v in contour_kwargs.items():
         _contour_kwargs[k] = v
 
 
@@ -330,8 +330,9 @@ def overlay_ccd_angles(calibration_image, levels, label_levels = None, ax = None
     _label_kwargs = dict(
         levels = label_levels,
         inline = True,
+        inline_spacing = 10,
         )
-    for k,v in label_kwargs:
+    for k,v in label_kwargs.items():
         _label_kwargs[k] = v
 
 
