@@ -155,12 +155,133 @@ def self_absorption(elements, numElements, density, thickness, incidentenergy, x
     incidentAttCoeff = attenuation_coefficient(elements, numElements, density, incidentenergy)
     exitAttCoeff = attenuation_coefficient(elements, numElements, density, xrfenergy)
     
-    incidentTheta = sampletheta
-    exitTheta = detectortheta - sampletheta
+    incident_theta = sampletheta
+    exit_theta = detectortheta - sampletheta
 
-    c = np.abs((incidentAttCoeff/np.cos(np.deg2rad(incidentTheta)))) + np.abs((exitAttCoeff/np.cos(np.deg2rad(exitTheta))))
+    c = np.abs((incidentAttCoeff/np.cos(np.deg2rad(incident_theta)))) + np.abs((exitAttCoeff/np.cos(np.deg2rad(exit_theta))))
 
     xrfFraction = (1/thickness) * (1/c) * (1 - np.exp(-c * thickness))
 
     return xrfFraction
 
+# def self_absorption_particle(elements, numElements, density, thickness, xscale, yscale, zscale, zstep = 5, incidentenergy, xrfenergy, sampletheta):
+#     '''
+#     returns fraction of x-ray fluorescence excited, transmitted through a sample, and reaching to an XRF detector. This
+#     calculation assumes no secondary fluorescence/photon recycling. The returned fraction is the relative apparent signal after 
+#     incident beam attenuation and exit fluorescence attenuation - dividing the measured XRF value by this fraction should
+#     approximately correct for self-absorption losses and allow better comparison of fluorescence signals in different energy
+#     ranges. This code assumes the 
+
+#     Calculations are defined by:
+
+#         elements: list of elements ['Fe', 'Cu']
+#         numElements: list of numbers corresponding to elemental composition. [1,2] for FeCu2
+#         density: overall density of material (g/cm3)
+#         thickness: 2d array of sample thickness - NOT PATH LENGTH (cm)
+#         xscale: cm per pixel
+#         yscale: cm per pixel
+#         zscale: cm per pixel
+#         zstep: number of vertical pixels to move down by per raytrace
+#         incidentenergy: x-ray energy (keV) of incoming beam
+#         xrfenergy: x-ray energy (keV) of XRF signal
+#         sampletheta: angle (degrees) between incident beam and sample normal
+#         detectortheta: angle(degrees) between incident beam and XRF detector axis
+#     '''
+            
+#         while in_sample:
+#     #         print(f'{k},{i}')
+
+#             if d[i, int(j), int(k)]: #sample exists at coordinate
+#                 measured_signal += trace_emission(
+#                     i, int(j), int(k), 
+#                     mu = mu_emission,
+#                     power = incident_power, 
+#                     step = step,
+#                     theta = detector_theta,
+#                     ax = ax
+#                 )
+#                 incident_power *= step_transmission
+#                 if plot:
+#                     ax.scatter(int(j), k, c = 'r', s = incident_power*50)
+            
+#             k -= step_k
+#             j += step_j
+#             if (k < 0) or (k >= d.shape[2]):
+#                 in_sample = False
+#             if (i < 0) or (i >= d.shape[0]):
+#                 in_sample = False
+#             if (int(j) < 0) or (int(j) >= d.shape[1]):
+#                 in_sample = False
+            
+
+#         return measured_signal
+        
+    
+#     # angles relative to sample plane
+#     incident_theta = sampletheta
+#     exit_theta = detectortheta - sampletheta
+
+#     d = np.zeros((*thickness.shape, numz)) # d is a 3d mask of sample volume
+#     for m,n in np.ndindex(*d.shape[:2]):
+#         zidx = int(thickness[m,n]/zscale)
+#         d[m,n,:zidx] = 1
+
+
+#     mu_incident = attenuation_coefficient(elements, numElements, density, incidentenergy)
+#     mu_emission = attenuation_coefficient(elements, numElements, density, xrfenergy)
+    
+#     signal_factor = np.zeros(thickness.shape)
+#     for m,n in tqdm(np.ndindex(signal_factor.shape), total = signal_factor.shape[0]*signal_factor.shape[1]):
+#         signal_factor[m,n] = trace_incident(m,n, step = zstep , theta = incident_theta)
+
+#     signal_factor /= signal_factor.max()
+
+    
+#     return signal_factor
+
+# def trace_emission(i,j,k, mu, power, theta, ax = None):
+#     theta = np.deg2rad(theta)
+#     step_j = step * np.cos(theta) / zscale_factor
+#     step_k = step * np.sin(theta) 
+#     step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
+#     step_transmission = np.exp(-mu * step_cm)
+    
+#     in_sample = True
+#     while in_sample:
+#         k -= step_k
+#         j -= step_j
+#         if (k < 0) or (k >= d.shape[2]):
+#             in_sample = False
+#         if (i < 0) or (i >= d.shape[0]):
+#             in_sample = False
+#         if (int(j) < 0) or (int(j) >= d.shape[1]):
+#             in_sample = False
+        
+#         if in_sample and d[i, int(j), int(k)]: #sample exists at coordinate
+#             power *= step_transmission
+#             if ax is not None:
+#                 ax.scatter(int(j), k, c = 'b', s = power * 50)
+                
+#     return power
+
+# def trace_incident(i,j,theta, plot = False):
+#     detector_theta = 90 - theta
+#     theta = np.deg2rad(theta)
+#     step_k = step * np.sin(theta) 
+#     step_j = step * np.cos(theta) / zscale_factor
+#     step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
+#     step_transmission = np.exp(-mu_incident * step_cm)
+    
+#     incident_power = 1
+#     measured_signal = 0
+    
+#     k = d.shape[2]-1
+#     in_sample = True
+    
+#     if plot:
+#         fig, ax = plt.subplots(figsize = (15,6))
+#         ax.imshow(d[i,:,:].T, origin = 'lower')
+#         ax.set_aspect(1/zscale_factor)
+#         frgplt.scalebar(ax, scale = xscale*1e-6)
+#     else:
+#         ax = None

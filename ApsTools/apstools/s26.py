@@ -96,10 +96,6 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
     mask = ROIccds.sum(4).sum(3).sum(0) <= min_counts   #any points on map without sufficient counts in reciprocal ROI are excluded from fit
     ROIccds[:,mask] = np.nan 
     sumROIccds = ROIccds.sum(axis = 0)  #total counts per realspace point over all unmasked realspace points
-    if extent[0] < extent[1]: #hybridx scanned such that map is flipped from realspace
-        ccds = ccds[:,:,::-1]
-    if extent[3] < extent[2]: #hybridy scanned such that map is flipped from realspace
-        ccds = ccds[:,::-1]
 
     ### Initialize data vectors
     # hold q vector centroids from rocking curve fitting
