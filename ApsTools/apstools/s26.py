@@ -260,7 +260,7 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
                 headaxislength = 2,
                 headwidth = 6
                 )
-        frgplt.scalebar(ax[0][1], 1e-6, box_color = [0,0,0], box_alpha = 0.8, pad = 0.3)
+        frgplt.scalebar(1e-6, ax = ax[0][1], box_color = [0,0,0], box_alpha = 0.8, pad = 0.3)
         ax[0][1].set_xticks([])
         ax[0][1].set_yticks([])
 

@@ -73,6 +73,9 @@ def scattering_factor(element, energy):
     return f1, f2
 
 def molar_mass(element):
+    '''
+    looks up molar mass of a given atom
+    '''
     dataPath = os.path.join(packageDir, 'include', 'Molar Masses.txt')
     molar_mass = None
     with open(dataPath, 'r') as f:
@@ -83,84 +86,87 @@ def molar_mass(element):
                 break
     return molar_mass
 
-### Attenuation, transmission, self-absorption, etc.
-
-def attenuation_coefficient(elements, numElements, density, energy):
+class Material:
     '''
-    returns x-ray attenuation coefficient, in cm-1, given:
-        elements: list of elements ['Fe', 'Cu']
-        numElements: list of numbers corresponding to elemental composition. [1,2] for FeCu2
+    Class that, for a defined material, can generate x-ray attenuation coefficients
+    and related values.
+    '''
+    def __init__(self, elements, density):
+        '''
+        elements: dictionary of elements and their molar fraction of the material. 
+                            ie, for FeCu2: {'Fe':1, 'Cu':2} 
         density: overall density of material (g/cm3)
-        energy: x-ray energy(ies) (keV)
+        '''
+        self.elements = elements
+        self.density = density
+
+    def attenuation_coefficient(self, energy):
+        '''
+        returns x-ray attenuation coefficient, in cm-1, given:
+            energy: x-ray energy(ies) (keV)
+        '''
+        N_a = 6.022e23
+        c = (1e-19)/(np.pi*0.9111)  # keV*cm^2
+        energy = np.array(energy)
+        f2 = 0
+        mass = 0
+        for i, (el, num) in self.elements.items():
+            _, f2temp = scattering_factor(el, energy)
+            f2 = f2 + num*f2temp
+            mass = mass + num*molar_mass(el)
+
+        mu = (self.density*N_a/mass) * (2*c/energy) * f2
+        return mu
+    
+    def attenuation_length(self, energy):
+        '''
+        returns x-ray attenuation length (distance for transmitted intensity to
+        decay to 1/e), in cm
+        '''
+        mu = self.attenuation_coefficient(elements, numElements, density, energy)
+        return 1/mu
+
+    def transmission(self, thickness, energy):
+        '''
+        returns fraction of x-ray intensity transmitted through a sample, defined by
+            thickness: path length of x rays (cm)
+            energy: x-ray energy (keV)
+        '''
+
+        mu = attenuation_coefficient(energy)
+        t = np.exp(-mu*thickness)
+
+        return t
+
+### self-absorption
+
+def self_absorption_film(material: Material, thickness, incidentenergy, xrfenergy, sampletheta, detectortheta):
     '''
-    N_a = 6.022e23
-    c = (1e-19)/(np.pi*0.9111)  # keV*cm^2
-    energy = np.array(energy)
-    f2 = 0
-    mass = 0
-    for i, el, num in zip(range(len(elements)), elements, numElements):
-        _, f2temp = scattering_factor(el, energy)
-        f2 = f2 + num*f2temp
-        mass = mass + num*molar_mass(el)
-
-    mu = (density*N_a/mass) * (2*c/energy) * f2
-    return mu
-
-def attenuation_length(elements, numElements, density, energy):
-    '''
-    returns x-ray attenuation length (distance for transmitted intensity to
-    decay to 1/e), in cm
-    '''
-    mu = attenuation_coefficient(elements, numElements, density, energy)
-    return 1/mu
-
-def transmission(elements, numElements, density, thickness, energy):
-    '''
-    returns fraction of x-ray intensity transmitted through a sample, defined by
-
-        elements: list of elements ['Fe', 'Cu']
-        numElements: list of numbers corresponding to elemental composition. [1,2] for FeCu2
-        density: overall density of material (g/cm3)
-        thickness: path length of x rays (cm)
-        energy: x-ray energy (keV)
-    '''
-
-    mu = attenuation_coefficient(
-        elements, numElements, density, energy)
-
-    t = np.exp(-mu*thickness)
-
-    return t
-
-def self_absorption(elements, numElements, density, thickness, incidentenergy, xrfenergy, sampletheta, detectortheta):
-    '''
-    returns fraction of x-ray fluorescence excited, transmitted through a sample, and reaching to an XRF detector. This
-    calculation assumes no secondary fluorescence/photon recycling. The returned fraction is the apparent signal after 
+    returns fraction of incident beam power that is causes fluorescence, transmits through a sample, and reaches the XRF detector. 
+    This calculation assumes no secondary fluorescence/photon recycling. The returned fraction is the apparent signal after 
     incident beam attenuation and exit fluorescence attenuation - dividing the measured XRF value by this fraction should
     approximately correct for self-absorption losses and allow better comparison of fluorescence signals in different energy
     ranges.
 
     Calculations are defined by:
 
-        elements: list of elements ['Fe', 'Cu']
-        numElements: list of numbers corresponding to elemental composition. [1,2] for FeCu2
-        density: overall density of material (g/cm3)
+        material: xrf.Material class 
         thickness: Sample thickness - NOT PATH LENGTH (cm)
         incidentenergy: x-ray energy (keV) of incoming beam
         xrfenergy: x-ray energy (keV) of XRF signal
         sampletheta: angle (degrees) between incident beam and sample normal
-        detectortheta: angle(degrees) between incident beam and XRF detector axis
+        detectortheta: angle    (degrees) between incident beam and XRF detector axis
     '''
 
-    incidentAttCoeff = attenuation_coefficient(elements, numElements, density, incidentenergy)
-    exitAttCoeff = attenuation_coefficient(elements, numElements, density, xrfenergy)
+    incidentAttCoeff = material.attenuation_coefficient(incidentenergy)
+    exitAttCoeff = material.attenuation_coefficient(xrfenergy)
     
-    incident_theta = sampletheta
-    exit_theta = detectortheta - sampletheta
+    incident_theta = np.deg2rad(sampletheta)
+    exit_theta = np.deg2rad(detectortheta - sampletheta)
 
-    c = np.abs((incidentAttCoeff/np.cos(np.deg2rad(incident_theta)))) + np.abs((exitAttCoeff/np.cos(np.deg2rad(exit_theta))))
+    c = np.abs(incidentAttCoeff/np.cos(incident_theta)) + np.abs(exitAttCoeff/np.cos(exit_theta))
 
-    xrfFraction = (1/thickness) * (1/c) * (1 - np.exp(-c * thickness))
+    xrfFraction = (1/thickness) * (1/c) * (1 - np.exp(-c*thickness))
 
     return xrfFraction
 
