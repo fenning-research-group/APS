@@ -4,6 +4,8 @@ import json
 import os
 import csv
 import matplotlib.transforms as transforms
+from tqdm import tqdm
+import multiprocessing as mp
 
 packageDir = os.path.dirname(os.path.abspath(__file__))
 
@@ -110,7 +112,7 @@ class Material:
         energy = np.array(energy)
         f2 = 0
         mass = 0
-        for i, (el, num) in self.elements.items():
+        for i, (el, num) in enumerate(self.elements.items()):
             _, f2temp = scattering_factor(el, energy)
             f2 = f2 + num*f2temp
             mass = mass + num*molar_mass(el)
@@ -123,7 +125,7 @@ class Material:
         returns x-ray attenuation length (distance for transmitted intensity to
         decay to 1/e), in cm
         '''
-        mu = self.attenuation_coefficient(elements, numElements, density, energy)
+        mu = self.attenuation_coefficient(energy)
         return 1/mu
 
     def transmission(self, thickness, energy):
@@ -170,124 +172,314 @@ def self_absorption_film(material: Material, thickness, incidentenergy, xrfenerg
 
     return xrfFraction
 
-# def self_absorption_particle(elements, numElements, density, thickness, xscale, yscale, zscale, zstep = 5, incidentenergy, xrfenergy, sampletheta):
-#     '''
-#     returns fraction of x-ray fluorescence excited, transmitted through a sample, and reaching to an XRF detector. This
-#     calculation assumes no secondary fluorescence/photon recycling. The returned fraction is the relative apparent signal after 
-#     incident beam attenuation and exit fluorescence attenuation - dividing the measured XRF value by this fraction should
-#     approximately correct for self-absorption losses and allow better comparison of fluorescence signals in different energy
-#     ranges. This code assumes the 
 
-#     Calculations are defined by:
+class ParticleXRF:
+    def __init__(self, z, scale, sample_theta, detector_theta):
+        # self.material = material
+        self.z = z
+        self.scale = scale
+        self.sample_theta = sample_theta
+        self.detector_theta = detector_theta
 
-#         elements: list of elements ['Fe', 'Cu']
-#         numElements: list of numbers corresponding to elemental composition. [1,2] for FeCu2
-#         density: overall density of material (g/cm3)
-#         thickness: 2d array of sample thickness - NOT PATH LENGTH (cm)
-#         xscale: cm per pixel
-#         yscale: cm per pixel
-#         zscale: cm per pixel
-#         zstep: number of vertical pixels to move down by per raytrace
-#         incidentenergy: x-ray energy (keV) of incoming beam
-#         xrfenergy: x-ray energy (keV) of XRF signal
-#         sampletheta: angle (degrees) between incident beam and sample normal
-#         detectortheta: angle(degrees) between incident beam and XRF detector axis
-#     '''
+    @property
+    def scale(self):
+        return self.__scale
+    @scale.setter
+    def scale(self, scale):
+        scale = np.array(scale)
+        if len(scale) == 1:
+            scale = np.tile(scale, 3) #single scale value given, assume same for x,y,z
+        self.__scale = scale
+
+    @property
+    def sample_theta(self):
+        return self.__sample_theta
+    @sample_theta.setter
+    def sample_theta(self, sample_theta):
+        self.__sample_theta = sample_theta
+        self.__sample_theta_rad = np.deg2rad(sample_theta)
+
+    @property
+    def detector_theta(self):
+        return self.__detector_theta
+    @detector_theta.setter
+    def detector_theta(self, detector_theta):
+        self.__detector_theta = detector_theta
+        self.__detector_theta_rad = np.deg2rad(detector_theta)
+
+    def __check_if_in_simulation_bounds(self, i, j, k):
+        for current_position, simulation_bound in zip([i,j,k], self._d.shape):
+            if (current_position < 0) or (int(round(current_position)) >= simulation_bound):
+                return False
+        return True
+
+    def raytrace(self, step = 5, pad_left = 50, pad_right = 50, chunksize = 100, n_workers = 4):
+        self.step = step
+        self.__step_cm = step * self.scale[0] * 1e-4
+
+        x_pad = pad_right + pad_left
+        numz = int(self.z.max()/ self.scale[2])
+        
+        self._d = np.full((self.z.shape[0], self.z.shape[1]+x_pad, numz), False) # 3d boolean mask of sample volume - assumes no embedded holes in sample
+        for i,j in np.ndindex(*self.z.shape):
+            zidx = int(self.z[i,j] / self.scale[2])
+            self._d[i,int(j+pad_left),:zidx] = True       
+
+        self._incident_steps = [[None for j in range(self._d.shape[1])]
+                                      for i in range(self._d.shape[0])]
+        self._emission_steps = [[None for j in range(self._d.shape[1])]
+                                      for i in range(self._d.shape[0])]
+
+        with mp.Pool(n_workers) as pool:
+            pts = list(np.ndindex(self._d.shape[:2]))
+            raytrace_output = pool.starmap(self._trace_incident, pts, chunksize = chunksize)
+        for (i,j), (in_pts, em_steps) in zip(pts, raytrace_output):
+            self._incident_steps[i][j] = in_pts
+            self._emission_steps[i][j] = em_steps
+
+    def calc_ssf(self, material, incident_energy):
+        self.ssf = []
+        step_transmission = material.transmission(self.__step_cm, incident_energy)
+
+        for i, row in enumerate(self._incident_steps):
+            col = []
+            for j, ray in enumerate(row):
+                this_point = {'coordinate':[], 'weight':[]}
+                incident_power = 1
+                for intersection_pt in ray:
+                    this_point['coordinate'].append(intersection_pt)
+                    this_point['weight'].append(incident_power)
+                    incident_power *= step_transmission
+                this_point['weight'] = np.array(this_point['weight'])
+                this_point['coordinate'] = np.array(this_point['coordinate'])
+                this_point['weight'] /= this_point['weight'].sum() #normalize interaction weight so all points sum to 1
+                col.append(this_point)
+            self.ssf.append(col)
+
+        return self.ssf               
+
+    def calc_self_absorption_factor(self, material, incident_energy, emission_energy):
+        self.saf = np.array(self._d.shape[:2])
+        step_transmission_incident = material.transmission(self.__step_cm, incident_energy)
+        step_transmission_emission = material.transmission(self.__step_cm, emission_energy)
+
+        for i, (incident_row, emission_row) in enumerate(zip(self._incident_steps, self._emission_steps)):
+            for j, (incident_ray, exit_ray) in enumerate(zip(incident_row, emission_row)):
+                incident_power = 1
+                emission_power = 0
+                for intersection_pt, exit_pts in zip(incident_ray, exit_ray):
+                    abs_power = incident_power * (1-step_transmission_incident) #assume all power attenuated at this step is absorbed + fluoresced
+                    emission_power += abs_power * (step_transmission_emission ** exit_pts) #attenuate fluoresced signal for all intersection steps on the exit path
+                    incident_power *= step_transmission_incident #attenuate incident beam before moving on to next intersection point
+                self.saf[i,j] = emission_power
+
+        return self.saf
+                
+    def _trace_emission(self, i,j,k):
+        exit_theta = self.__sample_theta_rad - self.__detector_theta_rad
+        step_i = 0
+        step_j = self.step * np.cos(exit_theta)
+        step_k = self.step * np.sin(exit_theta) 
+        n_attenuation_steps = 0
+
+        in_bounds = True
+        while in_bounds:
+            i += step_i
+            j += step_j
+            k -= step_k
+
+            i_ = int(round(i))
+            j_ = int(round(j))
+            k_ = int(round(k))
+            in_bounds = self.__check_if_in_simulation_bounds(i,j,k)                        
+
+            if in_bounds and self._d[i_, j_, k_]: #sample exists at coordinate
+                n_attenuation_steps += 1
+
+        return n_attenuation_steps
+
+    def _trace_incident(self, i,j):
+        step_i = 0
+        step_k = self.step * np.sin(self.__detector_theta_rad) 
+        step_j = self.step * np.cos(self.__detector_theta_rad)
+        
+        attenuation_points = []
+        n_emission_steps = []
+        
+        k = self._d.shape[2]-1
+
+        in_bounds = True
+        while in_bounds:
+            i_ = int(round(i))
+            j_ = int(round(j))
+            k_ = int(round(k))
+
+            if self._d[i_, j_, k_]: #sample exists at coordinate
+                attenuation_points.append((i_, j_, k_))
+                n_emission_steps.append(self._trace_emission(i, j, k))
             
+            i -= step_i
+            k -= step_k
+            j -= step_j
+            in_bounds = self.__check_if_in_simulation_bounds(i,j,k)                        
+
+        return attenuation_points, n_emission_steps
+
+# step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
+#         step_transmission = np.exp(-mu_incident * step_cm)
+
+
+
+# def self_absorption_particle(z, scale, material, incident_energy, emission_energy, sample_theta, detector_theta = 90, step = 20, zscale_factor = 40, z_background_threshold = 0.2):
+#     def trace_emission(i,j,k, mu, power, step = step, theta = 90, ax = None):
+#         theta = np.deg2rad(theta)
+#         step_j = step / zscale_factor * np.cos(theta)
+#         step_k = step * np.sin(theta) 
+#         step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
+#         step_transmission = np.exp(-mu * step_cm)
+#         in_sample = True
 #         while in_sample:
-#     #         print(f'{k},{i}')
-
-#             if d[i, int(j), int(k)]: #sample exists at coordinate
-#                 measured_signal += trace_emission(
-#                     i, int(j), int(k), 
-#                     mu = mu_emission,
-#                     power = incident_power, 
-#                     step = step,
-#                     theta = detector_theta,
-#                     ax = ax
-#                 )
-#                 incident_power *= step_transmission
-#                 if plot:
-#                     ax.scatter(int(j), k, c = 'r', s = incident_power*50)
-            
 #             k -= step_k
 #             j += step_j
-#             if (k < 0) or (k >= d.shape[2]):
+#             if (k < 0) or (int(round(k)) >= d.shape[2]):
 #                 in_sample = False
 #             if (i < 0) or (i >= d.shape[0]):
 #                 in_sample = False
-#             if (int(j) < 0) or (int(j) >= d.shape[1]):
+#             if (int(round(j)) < 0) or (int(round(j)) >= d.shape[1]):
 #                 in_sample = False
-            
 
-#         return measured_signal
+#             if in_sample and d[i, int(round(j)), int(round(k))]: #sample exists at coordinate
+#                 power *= step_transmission
+#                 if ax is not None:
+#                     ax.scatter(j, k, c = 'b', s = power * 50)
+
+#         return power
+    
+#     def trace_incident(i,j, mu_incident, mu_emission, step = step, theta = 90, detector_theta = 90, plot = False):
+#         exit_theta = detector_theta - theta
+#         theta = np.deg2rad(theta)
+#         step_k = step * np.sin(theta) 
+#         step_j = step / zscale_factor * np.cos(theta)
+#         step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
+#         step_transmission = np.exp(-mu_incident * step_cm)
+
+#         incident_power = 1
+#         measured_signal = 0
+#         kernel = {key:[] for key in ['coordinate', 'weight']}
         
-    
-#     # angles relative to sample plane
-#     incident_theta = sampletheta
-#     exit_theta = detectortheta - sampletheta
+#         k = d.shape[2]-1
+#         in_sample = True
 
-#     d = np.zeros((*thickness.shape, numz)) # d is a 3d mask of sample volume
-#     for m,n in np.ndindex(*d.shape[:2]):
-#         zidx = int(thickness[m,n]/zscale)
-#         d[m,n,:zidx] = 1
+#         if plot:
+#             fig, ax = plt.subplots(figsize = (15,6))
+#             ax.imshow(d[i,:,:].T, origin = 'lower')
+#             ax.set_aspect(1/zscale_factor)
+#             frgplt.scalebar(scale = xscale*1e-6, ax = ax)
+#         else:
+#             ax = None
 
-
-#     mu_incident = attenuation_coefficient(elements, numElements, density, incidentenergy)
-#     mu_emission = attenuation_coefficient(elements, numElements, density, xrfenergy)
-    
-#     signal_factor = np.zeros(thickness.shape)
-#     for m,n in tqdm(np.ndindex(signal_factor.shape), total = signal_factor.shape[0]*signal_factor.shape[1]):
-#         signal_factor[m,n] = trace_incident(m,n, step = zstep , theta = incident_theta)
-
-#     signal_factor /= signal_factor.max()
-
-    
-#     return signal_factor
-
-# def trace_emission(i,j,k, mu, power, theta, ax = None):
-#     theta = np.deg2rad(theta)
-#     step_j = step * np.cos(theta) / zscale_factor
-#     step_k = step * np.sin(theta) 
-#     step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
-#     step_transmission = np.exp(-mu * step_cm)
-    
-#     in_sample = True
-#     while in_sample:
-#         k -= step_k
-#         j -= step_j
-#         if (k < 0) or (k >= d.shape[2]):
-#             in_sample = False
-#         if (i < 0) or (i >= d.shape[0]):
-#             in_sample = False
-#         if (int(j) < 0) or (int(j) >= d.shape[1]):
-#             in_sample = False
-        
-#         if in_sample and d[i, int(j), int(k)]: #sample exists at coordinate
-#             power *= step_transmission
-#             if ax is not None:
-#                 ax.scatter(int(j), k, c = 'b', s = power * 50)
+#         while in_sample:
+#     #         print(f'{k},{i}')
+#             if d[i, int(round(j)), int(round(k))]: #sample exists at coordinate
+#                 measured_signal += trace_emission(
+#                     i, int(j), int(k), 
+#                     mu = mu_emission,
+#                     power = incident_power*(1-step_transmission), 
+#                     step = step,
+#                     theta = exit_theta,
+#                     ax = ax
+#                 )
+#                 kernel['coordinate'].append([i, int(round(j))])
+#                 kernel['weight'].append(incident_power)
+#                 if plot:
+#                     ax.scatter(j, k, c = 'r', s = incident_power*50)
                 
-#     return power
+#                 incident_power *= step_transmission
 
-# def trace_incident(i,j,theta, plot = False):
-#     detector_theta = 90 - theta
-#     theta = np.deg2rad(theta)
-#     step_k = step * np.sin(theta) 
-#     step_j = step * np.cos(theta) / zscale_factor
-#     step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
-#     step_transmission = np.exp(-mu_incident * step_cm)
+
+#             k -= step_k
+#             j -= step_j
+#             if (k < 0) or (int(round(k)) >= d.shape[2]):
+#                 in_sample = False
+#             if (i < 0) or (i >= d.shape[0]):
+#                 in_sample = False
+#             if (int(round(j)) < 0) or (int(round(j)) >= d.shape[1]):
+#                 in_sample = False
+
+#         kernel = {key: np.array(val) for key, val in kernel.items()}
+#         kernel['weight'] = kernel['weight'] / kernel['weight'].sum()
+
+#         return measured_signal, kernel
+        
+#     ## Mesh generation
+#     xscale = yscale = zscale = scale
+#     zscale /= zscale_factor
+#     x_pad_left = 50
+#     x_pad_right = 250
+#     x_pad = x_pad_right + x_pad_left
     
-#     incident_power = 1
-#     measured_signal = 0
+#     z_background = z[z < z_background_threshold] #consider anything under 200 nm to be background/not crystal
+#     z -= z_background.mean()
+#     z[z < 0] = 0
+#     numz = int(z.max()/ zscale)
     
-#     k = d.shape[2]-1
-#     in_sample = True
+#     # 3d boolean mask of sample volume - assumes no embedded holes in sample
+#     d = np.full((z.shape[0], z.shape[1]+x_pad, numz), False)
+#     for m,n in np.ndindex(*z.shape):
+#         zidx = int(z[m,n]/zscale)
+#         d[m,int(n+x_pad_left),:zidx] = True
     
-#     if plot:
-#         fig, ax = plt.subplots(figsize = (15,6))
-#         ax.imshow(d[i,:,:].T, origin = 'lower')
-#         ax.set_aspect(1/zscale_factor)
-#         frgplt.scalebar(ax, scale = xscale*1e-6)
-#     else:
-#         ax = None
+#     ## simulation setup
+#     mu_incident = xrft.attenuation_coefficient(
+#         energy = incident_energy,
+#         **material
+#     )
+    
+#     if type(emission_energy) is not list:
+#         emission_energy = [emission_energy]
+    
+    
+#     output = {
+#         'signal_factor': {},
+#         'incident_energy': incident_energy,
+#     }
+#     kernels = [[[] for n in range(d.shape[1])]
+#                    for m in range(d.shape[0])]
+    
+#     generate_kernels = True
+#     for emission_energy_ in emission_energy:
+#         mu_emission = xrft.attenuation_coefficient(
+#             energy = emission_energy_,
+#             **material
+#         )
+        
+#         output['signal_factor'][emission_energy_] = np.zeros(d.shape[:2])
+
+#         for m,n in tqdm(np.ndindex(d.shape[:2]), total = d.shape[0]*d.shape[1]):
+#             output['signal_factor'][emission_energy_][m,n], kernels[m][n] = trace_incident(
+#                 m,
+#                 n,
+#                 mu_incident = mu_incident,
+#                 mu_emission = mu_emission,
+#                 step = step,
+#                 theta = sample_theta,
+#                 detector_theta = detector_theta,
+#             )
+    
+#     x_lineup_offset_com = -int(round(center_of_mass(d.argmin(axis = 2))[1] - center_of_mass(output['signal_factor'][emission_energy_])[1]))
+#     x_start = x_pad_left + x_lineup_offset_com
+#     x_end = x_start + z.shape[1]
+#     x_offset_array = np.array([0, -x_start])
+    
+#     for emission_energy_ in emission_energy:
+#         output['signal_factor'][emission_energy_] = output['signal_factor'][emission_energy_][:, x_start:x_end]
+    
+#     output['extent'] = [0, output['signal_factor'][emission_energy_].shape[1]*xscale, 0, output['signal_factor'][emission_energy_].shape[0]*yscale]
+#     output['z'] = z
+#     output['kernels'] = [k[x_start:x_end] for k in kernels]
+#     for m, k0 in enumerate(output['kernels']):
+#         for n, k1 in enumerate(k0):
+#             if len(output['kernels'][m][n]['coordinate']) > 0:
+#                 output['kernels'][m][n]['coordinate'] += x_offset_array
+    
+#     return output
