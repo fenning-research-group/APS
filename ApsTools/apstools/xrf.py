@@ -182,6 +182,8 @@ class ParticleXRF:
         self.scale = scale
         self.sample_theta = sample_theta
         self.detector_theta = detector_theta
+        self.align_method = 'com'
+        self._interaction_weight = None
 
     @property
     def scale(self):
@@ -209,16 +211,40 @@ class ParticleXRF:
         self.__detector_theta = detector_theta
         self.__detector_theta_rad = np.deg2rad(detector_theta)
 
+    @property
+    def align_method(self):
+        return self.__align_method
+    @align_method.setter
+    def align_method(self, m):
+        if m in [0,'leading']:
+            self.__align_method = 'leading'
+        elif m in [1, 'com']:
+            self.__align_method = 'com'
+        else:
+            raise ValueError('.align_method must be \'leading\' or \'com\'')
+
     def __check_if_in_simulation_bounds(self, i, j, k):
         for current_position, simulation_bound in zip([i,j,k], self._d.shape):
             if (current_position < 0) or (int(round(current_position)) >= simulation_bound):
                 return False
         return True
 
-    def raytrace(self, step = 5, pad_left = 50, pad_right = 50, chunksize = 200, n_workers = 4):
+    def raytrace(self, step = 5, pad_left = None, pad_right = None, chunksize = 200, n_workers = 4):
         self.step = step
         self.__step_cm = step * self.scale[2] * 1e-4 # step in units of k (z axis)
+        
+        pad_default = np.ceil(
+            np.abs((self.z.max() / np.tan(self.__sample_theta_rad))) #max x displacement based off max z 
+            /self.scale[1]                   #scaled in case x and z scales differ
+            ).astype(int) + 1 #add 1 to buffer and avoid clipping
 
+        if pad_left is None:
+            pad_left = pad_default
+        if pad_right is None:
+            pad_right = pad_default
+
+        self.__pad_left = pad_left
+        self.__pad_right = pad_right
         x_pad = pad_right + pad_left
         numz = int(self.z.max()/ self.scale[2])
         
@@ -249,7 +275,7 @@ class ParticleXRF:
         step_transmission = material.transmission(self.__step_cm, incident_energy)
 
         for i, row in enumerate(self._incident_steps):
-            col = []
+            row_ssf = []
             for j, ray in enumerate(row):
                 this_point = {'coordinate':[], 'weight':[]}
                 incident_power = 1
@@ -261,14 +287,19 @@ class ParticleXRF:
                 this_point['coordinate'] = np.array(this_point['coordinate'])
                 total_weight = np.sum(this_point['weight'])
                 this_point['weight'] = np.array([w/total_weight for w in this_point['weight']]) #normalize interaction weight so all points sum to 1
-                col.append(this_point)
+                row_ssf.append(this_point)
                 self._interaction_weight[i,j] = total_weight
-            self.ssf.append(col)
+            self.ssf.append(row_ssf)
+        self.ssf = self._clip_to_original(np.array(self.ssf), ssf = True)
 
-        return self.ssf               
+        return self.ssf
 
     def calc_self_absorption_factor(self, material, incident_energy, emission_energy):
+        if self._interaction_weight is None:
+            self.calc_ssf(material, incident_energy)
+
         self.saf = np.zeros(self._d.shape[:2])
+
         step_transmission_incident = material.transmission(self.__step_cm, incident_energy)
         step_transmission_emission = material.transmission(self.__step_cm, emission_energy)
 
@@ -281,8 +312,33 @@ class ParticleXRF:
                     emission_power += abs_power * (step_transmission_emission ** exit_pts) #attenuate fluoresced signal for all intersection steps on the exit path
                     incident_power *= step_transmission_incident #attenuate incident beam before moving on to next intersection point
                 self.saf[i,j] = emission_power
+        self.saf = self._clip_to_original(np.array(self.saf))
 
         return self.saf
+
+    def _clip_to_original(self, x, ssf = False):
+        offset_method_lookup = {
+            'leading': self._find_offset_leading_edge,
+            'com':     self._find_offset_com
+        }
+        offset_method = offset_method_lookup[self.__align_method]
+        alignment_offset = offset_method()
+
+        j_start = self.__pad_left - alignment_offset
+        slice_j = slice(
+            j_start,
+            j_start + self.z.shape[1],
+            1
+        )
+
+        if ssf:
+            for m,n in np.ndindex(x.shape):
+                if len(x[m,n]['coordinate']):
+                    x[m,n]['coordinate'][:,1] -= j_start
+
+        return x[:, slice_j]
+
+
     def _find_offset_leading_edge(self, threshold = 0.1):
         def find_offset_line(i):
             z_line = np.argmin(self._d[i], axis = 1)
@@ -372,6 +428,8 @@ class ParticleXRF:
             in_bounds = self.__check_if_in_simulation_bounds(i,j,k)                        
 
         return attenuation_points, n_emission_steps
+
+
 
 # step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
 #         step_transmission = np.exp(-mu_incident * step_cm)
@@ -535,7 +593,7 @@ class ParticleXRF:
 
 
 
-
+###### https://stackoverflow.com/questions/57354700/starmap-combined-with-tqdm
 ### Python 3.8+
 # def __istarmap(self, func, iterable, chunksize=1):
 #     """starmap-version of imap
