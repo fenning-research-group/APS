@@ -6,6 +6,8 @@ import csv
 import matplotlib.transforms as transforms
 from tqdm import tqdm
 import multiprocessing as mp
+import multiprocessing.pool as mpp
+from scipy.ndimage import center_of_mass
 
 packageDir = os.path.dirname(os.path.abspath(__file__))
 
@@ -135,7 +137,7 @@ class Material:
             energy: x-ray energy (keV)
         '''
 
-        mu = attenuation_coefficient(energy)
+        mu = self.attenuation_coefficient(energy)
         t = np.exp(-mu*thickness)
 
         return t
@@ -213,9 +215,9 @@ class ParticleXRF:
                 return False
         return True
 
-    def raytrace(self, step = 5, pad_left = 50, pad_right = 50, chunksize = 100, n_workers = 4):
+    def raytrace(self, step = 5, pad_left = 50, pad_right = 50, chunksize = 200, n_workers = 4):
         self.step = step
-        self.__step_cm = step * self.scale[0] * 1e-4
+        self.__step_cm = step * self.scale[2] * 1e-4 # step in units of k (z axis)
 
         x_pad = pad_right + pad_left
         numz = int(self.z.max()/ self.scale[2])
@@ -223,7 +225,7 @@ class ParticleXRF:
         self._d = np.full((self.z.shape[0], self.z.shape[1]+x_pad, numz), False) # 3d boolean mask of sample volume - assumes no embedded holes in sample
         for i,j in np.ndindex(*self.z.shape):
             zidx = int(self.z[i,j] / self.scale[2])
-            self._d[i,int(j+pad_left),:zidx] = True       
+            self._d[i,int(j+pad_left),:zidx] = True
 
         self._incident_steps = [[None for j in range(self._d.shape[1])]
                                       for i in range(self._d.shape[0])]
@@ -232,13 +234,18 @@ class ParticleXRF:
 
         with mp.Pool(n_workers) as pool:
             pts = list(np.ndindex(self._d.shape[:2]))
-            raytrace_output = pool.starmap(self._trace_incident, pts, chunksize = chunksize)
+            raytrace_output = []
+            for output in tqdm(pool.istarmap(self._trace_incident, pts, chunksize = chunksize), total = len(pts)):
+                raytrace_output.append(output)
+
+            # raytrace_output = pool.starmap(self._trace_incident, pts, chunksize = chunksize)
         for (i,j), (in_pts, em_steps) in zip(pts, raytrace_output):
             self._incident_steps[i][j] = in_pts
             self._emission_steps[i][j] = em_steps
 
     def calc_ssf(self, material, incident_energy):
         self.ssf = []
+        self._interaction_weight = np.zeros(self._d.shape[:2])
         step_transmission = material.transmission(self.__step_cm, incident_energy)
 
         for i, row in enumerate(self._incident_steps):
@@ -250,16 +257,18 @@ class ParticleXRF:
                     this_point['coordinate'].append(intersection_pt)
                     this_point['weight'].append(incident_power)
                     incident_power *= step_transmission
-                this_point['weight'] = np.array(this_point['weight'])
+                # this_point['weight'] = np.array(this_point['weight'])
                 this_point['coordinate'] = np.array(this_point['coordinate'])
-                this_point['weight'] /= this_point['weight'].sum() #normalize interaction weight so all points sum to 1
+                total_weight = np.sum(this_point['weight'])
+                this_point['weight'] = np.array([w/total_weight for w in this_point['weight']]) #normalize interaction weight so all points sum to 1
                 col.append(this_point)
+                self._interaction_weight[i,j] = total_weight
             self.ssf.append(col)
 
         return self.ssf               
 
     def calc_self_absorption_factor(self, material, incident_energy, emission_energy):
-        self.saf = np.array(self._d.shape[:2])
+        self.saf = np.zeros(self._d.shape[:2])
         step_transmission_incident = material.transmission(self.__step_cm, incident_energy)
         step_transmission_emission = material.transmission(self.__step_cm, emission_energy)
 
@@ -274,11 +283,50 @@ class ParticleXRF:
                 self.saf[i,j] = emission_power
 
         return self.saf
-                
+    def _find_offset_leading_edge(self, threshold = 0.1):
+        def find_offset_line(i):
+            z_line = np.argmin(self._d[i], axis = 1)
+            z_above_threshold = np.where(z_line > d_thresh)[0]
+            if len(z_above_threshold) == 0:
+                return np.nan, np.nan
+            x_z_min = z_above_threshold.min()
+            x_z_max = z_above_threshold.max()
+            
+            signal_factor = self._interaction_weight[i]
+            signal_above_threshold = np.where(signal_factor > signal_thresh)[0]
+            if len(signal_above_threshold) == 0:
+                return np.nan, np.nan
+            x_signal_min = signal_above_threshold.min()
+            x_signal_max = signal_above_threshold.max()
+
+            left_edge_offset = x_z_min - x_signal_min
+            right_edge_offset =  x_z_max - x_signal_max
+
+            return left_edge_offset, right_edge_offset
+
+        d_thresh = self._d.max() * threshold
+        signal_thresh = self._interaction_weight.max() * threshold
+
+        if np.abs(self.sample_theta) <= 90: #beam enters from right side of sample
+            offset = np.nanmean([find_offset_line(i)[1] for i in range(self._d.shape[0])])
+        else:
+            offset = np.nanmean([find_offset_line(i)[0] for i in range(self._d.shape[0])])
+
+        return int(round(offset)) #need to clip the output arrays at integer index values
+    
+    def _find_offset_com(self):
+        z_com = center_of_mass(self._d.argmin(axis = 2))
+        signal_com = center_of_mass(self._interaction_weight)
+        offset = z_com[1] - signal_com[1] #only offset in x from beam projection - pencil beam contained in xz plane
+
+        return int(round(offset))
+
+
+        return offset
     def _trace_emission(self, i,j,k):
         exit_theta = self.__sample_theta_rad - self.__detector_theta_rad
-        step_i = 0
-        step_j = self.step * np.cos(exit_theta)
+        step_i = 0 * (self.scale[2]/self.scale[1]) #step is in units of k (z axis)
+        step_j = self.step * np.cos(exit_theta) * (self.scale[2]/self.scale[0]) #step is in units of k (z axis)
         step_k = self.step * np.sin(exit_theta) 
         n_attenuation_steps = 0
 
@@ -299,9 +347,9 @@ class ParticleXRF:
         return n_attenuation_steps
 
     def _trace_incident(self, i,j):
-        step_i = 0
-        step_k = self.step * np.sin(self.__detector_theta_rad) 
-        step_j = self.step * np.cos(self.__detector_theta_rad)
+        step_i = 0 * (self.scale[2]/self.scale[1]) #step is in units of k (z axis)
+        step_j = self.step * np.cos(self.__sample_theta_rad) * (self.scale[2]/self.scale[0]) #step is in units of k (z axis)
+        step_k = self.step * np.sin(self.__sample_theta_rad) 
         
         attenuation_points = []
         n_emission_steps = []
@@ -319,8 +367,8 @@ class ParticleXRF:
                 n_emission_steps.append(self._trace_emission(i, j, k))
             
             i -= step_i
-            k -= step_k
             j -= step_j
+            k -= step_k
             in_bounds = self.__check_if_in_simulation_bounds(i,j,k)                        
 
         return attenuation_points, n_emission_steps
@@ -483,3 +531,53 @@ class ParticleXRF:
 #                 output['kernels'][m][n]['coordinate'] += x_offset_array
     
 #     return output
+
+
+
+
+
+### Python 3.8+
+# def __istarmap(self, func, iterable, chunksize=1):
+#     """starmap-version of imap
+#     """
+#     self._check_running()
+#     if chunksize < 1:
+#         raise ValueError(
+#             "Chunksize must be 1+, not {0:n}".format(
+#                 chunksize))
+
+#     task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
+#     result = mpp.IMapIterator(self)
+#     self._taskqueue.put(
+#         (
+#             self._guarded_task_generation(result._job,
+#                                           mpp.starmapstar,
+#                                           task_batches),
+#             result._set_length
+#         ))
+#     return (item for chunk in result for item in chunk)
+
+def __istarmap(self, func, iterable, chunksize=1):
+    """starmap-version of imap
+    """
+    if self._state != mpp.RUN:
+        raise ValueError("Pool not running")
+
+    if chunksize < 1:
+        raise ValueError(
+            "Chunksize must be 1+, not {0:n}".format(
+                chunksize))
+
+    task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
+    result = mpp.IMapIterator(self._cache)
+    self._taskqueue.put(
+        (
+            self._guarded_task_generation(result._job,
+                                          mpp.starmapstar,
+                                          task_batches),
+            result._set_length
+        ))
+    return (item for chunk in result for item in chunk)
+
+
+mpp.Pool.istarmap = __istarmap
