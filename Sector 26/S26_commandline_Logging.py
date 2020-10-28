@@ -556,8 +556,10 @@ def prescan(scanArgs):
 
 	curframe = inspect.currentframe()   #REK 20191206
 	callframe = inspect.getouterframes(curframe, 2) #REK 20191206
-	scanFunction = callframe[1][3]  #name of function 1 levels above prescan - should be the scan function that called this REK 20191206
+	scanFunction = callframe[1].function  #name of function 1 levels above prescan - should be the scan function that called this REK 20191206
 	# scanFunction = 'featurecurrentlydeactivated' #callframe[1][3] was breaking during thetascan - if the problem crops up, comment three lines above and uncomment this one
+	scanArgs = inspect.getargvalues(callframe).locals.copy()
+
 	if u'fp' in scanArgs.keys():	#default logbook handle gets passed as scan argument sometimes, we dont care about that. REK 20191211
 		del(scanArgs[u'fp'])
 

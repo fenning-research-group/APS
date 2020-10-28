@@ -8,6 +8,17 @@ import os
 import math
 import socket
 
+### Instructions for use
+#
+#	1. load this file in command window. will initialize logbook in experiment directory, creates a folder called Logging
+#
+#	2. need to monkey patch the prescan command to loop in the logbook call
+#		- prescan_old = prescan #assign new name to default prescan command
+#		- prescan = prescan_REK #point prescan towards the new command. 
+###
+
+logger = Logger()
+
 class Logger():
 	"""
 	Object to handle logging of motor positions, filter statuses, and XRF ROI assignments per scan. 
@@ -101,3 +112,26 @@ class Logger():
 
 
 		self.lastScan
+
+def prescan_REK():
+	prescanoutput = prescan_old()
+
+	curframe = inspect.currentframe()   #REK 20191206
+	callframe = inspect.getouterframes(curframe, 2) #REK 20191206
+	try:
+		scanFunction = callframe[1].function  #name of function 1 levels above prescan - should be the scan function that called this REK 20191206
+	except:
+		scanFunction = 'error_when_finding_scanfunc'
+	# scanFunction = 'featurecurrentlydeactivated' #callframe[1][3] was breaking during thetascan - if the problem crops up, comment three lines above and uncomment this one
+	scanArgs = inspect.getargvalues(callframe).locals.copy()
+
+	if u'fp' in scanArgs.keys():	#default logbook handle gets passed as scan argument sometimes, we dont care about that. REK 20191211
+		del(scanArgs[u'fp'])
+
+	for k,_ in scanArgs.items():
+			# if type(scanArgs[k]) == epics.device.Device:
+			# 	scanArgs[k] = scanArgs[k].NAME
+		scanArgs[k] = str(scanArgs[k])
+	logger.updateLog(scanFunction = scanFunction, scanArgs = scanArgs)  #write to verbose logbook - REK 20191206
+
+	return prescanoutput
