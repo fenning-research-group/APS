@@ -72,6 +72,82 @@ def twotheta_adjust(twotheta, energy, energy0 = None):
 
 
 ### scripts for rocking curve analysis
+
+class RockingCurve:
+    '''
+    Performs 5d rocking curve processing of 2d maps of 2d diffraction ccds at various sample orientations 
+    '''
+    def __init__(self, ccds, samths, gamma, twotheta, energy, extent = None):
+        self.ccds = np.asarray(ccds) #5d array of rocking curve data [theta, realy, realx, recipy, recipx]
+        self._thetas = (np.pi/2 - np.deg2rad(np.asarray(samths)))[:, np.newaxis, np.newaxis]
+        self._gamma = np.deg2rad(np.asarray(gamma))
+        self._twotheta = np.deg2rad(np.asarray(twotheta))
+        self.extent = extent
+        self._K = 2*np.pi/(12.398/energy) #convert beam energy to spatial frequency 
+        self.rec_i = None
+
+        # define q vector components per ccd pixel per sample orientation
+        self.qy = self._K * np.sin(self._gamma) * np.ones(self._thetas.shape) # qy never changes, since sample rotater about qy direction. Multiply by thetas shape to copy qy for each samth
+        self.qx = self._K * np.cos(self._gamma) * np.sin(self._twotheta) #calc for samth = 0, will adjust below
+        self.qz = self._K * np.cos(self._gamma) * np.cos(self._twotheta) - self._K #calc for samth = 0, will adjust below. subtract K so Z is defined as into the sample normal (ie [001] = sample normal, from front to back of sample)
+        self.qmag = (self.qx**2 + self.qy**2 + self.qz**2)
+
+        # account for rotation in theta (about qy) affecting qx, qz positions on detector
+        self.qz = self.qz*np.cos(self._thetas) - self.qx*np.sin(self._thetas) #qz changes as sample theta changes - rotation about qy
+        self.qx = self.qz*np.sin(self._thetas) + self.qx*np.cos(self._thetas) #qx changes as sample theta changes - rotation about qy
+    
+    def roi(self, reciprocal, real = None):
+        '''
+        define reciprocal and realspace rois for analysis. takes two lists of bounding coordinates.
+            reciprocal = [ymin, ymax, xmin, xmax]
+            real = [ymin, ymax, xmin, xmax]
+        '''
+        self.rec_i = slice(reciprocal[0], reciprocal[1])
+        self.rec_j = slice(reciprocal[2], reciprocal[3])
+
+        if real is None:
+            self.real_i = slice(0, self.ccds.shape[1]-1)
+            self.real_j = slice(0, self.ccds.shape[2]-1)
+        else:
+            self.real_i = slice(real[0], real[1])
+            self.real_j = slice(real[2], real[3])
+        
+    def analyze(self):
+        if self.rec_i is None:
+            raise ValueError('Need to define the analysis regions of interest using ".roi()" before running rocking curve analysis')
+        ccds_roi = self.ccds[:, self.real_i, self.real_j, self.rec_i, self.rec_j]
+        q_mass = ccds_roi.sum(axis = (0,3,4)) #integrate diffraction counts over reciprocal roi + thetas for each realspace pixel
+        self.qx_fitted = (ccds_roi * self.qx[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(0,3,4) / q_mass #center of mass in qx per realspace pixel
+        self.qy_fitted = (ccds_roi * self.qy[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(0,3,4) / q_mass
+        self.qz_fitted = (ccds_roi * self.qz[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(0,3,4) / q_mass
+        self.qmag_fitted = np.sqrt(self.qx_fitted**2 + self.qy_fitted**2 + self.qz_fitted**2)
+        self.d_fitted = 2*np.pi/self.qmag_fitted
+
+        self._align_q_to_sample_normal()
+
+    def _align_q_to_sample_normal(self):
+        '''
+        rotate qx, qy, qz such that the mean q vector is parallel to (001), 
+        where (001) is normal to the diffracting planes. Internal method.
+        '''
+    
+        qx0 = self.qx_fitted.mean()
+        qy0 = self.qy_fitted.mean()
+        qz0 = self.qz_fitted.mean()
+
+        qx1 = 0
+        qy1 = 0
+        qz1 = 1
+
+        if np.fabs(qx0) > 1e-2:
+            self.__theta_xy = np.arctan2(-qy0, qx0)
+            self.qx_fitted, self.qy_fitted = self.qx_fitted*np.cos(theta) - self.qy_fitted*np.sin(theta), self.qx_fitted*np.sin(theta) + self.qy_fitted*np.cos(theta)
+            qx0 = self.qx_fitted.mean()
+        
+        self.__theta_xz = np.arctan2(-qx0, -qz0)
+        self.qz_fitted, self.qx_fitted = self.qz_fitted*np.cos(theta) - self.qx_fitted*np.sin(theta), -self.qz_fitted*np.sin(theta) + self.qx_fitted*np.cos(theta)
+        qz0 = self.qz_fitted.mean()
+
 def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_ROI = [0, 0, None, None], plot = True, extent = None, min_counts = 50, stream = False, savepath = None, geometry = 'bragg'):
     """
     Given Pilatus ccds, a realspace ROI, and reciprocal space ROI, qmat, fits a rocking curve
