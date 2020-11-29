@@ -334,7 +334,7 @@ class ParticleXRF:
         if ssf:
             for m,n in np.ndindex(x.shape):
                 if len(x[m,n]['coordinate']):
-                    x[m,n]['coordinate'][:,1] -= j_start
+                    x[m,n]['coordinate'][:,1] -= (j_start+1) #decrement by one more to account for zero indexing
 
         return x[:, slice_j]
 

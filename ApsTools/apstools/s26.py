@@ -21,6 +21,8 @@ from skimage.measure import label, regionprops
 from PIL import Image
 import pandas as pd
 from .helpers import _load_image_rek
+import re
+
 FRG_H5_PREFIX = '26idbSOFT_FRG_'
 
 ### convenience functions
@@ -971,7 +973,11 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
                 xrdcounts.attrs['description'] = 'Collapsed diffraction counts for each scan point.'
                 intxrdcounts = dpatterns.create_dataset('intcts', data = np.zeros((numpts,)))
                 intxrdcounts.attrs['description'] = 'Collapsed, area-integrated diffraction counts.'
-                imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_img_Pilatus_{1:05d}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
+
+                allimgpaths = [os.path.join(imagedirectory, str(data['scan']), f) for f in os.listdir(os.path.join(imagedirectory, str(data['scan'])))]
+                allimgpathnums = [int(re.match(r'scan_(\d*)_\D*_(\d*).tif', f).group(1)) for f in allimgpaths]
+                imgpaths = [allimgpaths[allimgpathnums.index(pn)] for pn in imnums.ravel()]
+                # imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_pil_{1:05d}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
                 print('Loading Images')
                 # print(imgpaths)
                 # imgdata = p.starmap(cv2.imread, [(x, -1) for x in imgpaths])
