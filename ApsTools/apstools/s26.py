@@ -79,26 +79,44 @@ class RockingCurve:
     '''
     Performs 5d rocking curve processing of 2d maps of 2d diffraction ccds at various sample orientations 
     '''
-    def __init__(self, ccds, samths, gamma, twotheta, energy, extent = None):
+    def __init__(self, ccds, samths, gamma, twotheta, energy, extent = None, correct_orientation = False):
         self.ccds = np.asarray(ccds) #5d array of rocking curve data [theta, realy, realx, recipy, recipx]
+        if extent is None:
+            self.extent = [0, self.ccds.shape[2], 0, self.ccds.shape[1]]
+            self._add_scalebar = False
+        else:
+            self.extent = extent
+            self._add_scalebar = True
+            if correct_orientation:
+                #assuming all rocking curves are taken in hybrid mode, orient the scan to match sample mounting orientation
+                if self.extent[0] < self.extent[1]:
+                    self.ccds = self.ccds[:,:,::-1]
+                    self.extent[0], self.extent[1] = self.extent[1], self.extent[0]
+                if self.extent[2] < self.extent[3]:
+                    self.ccds = self.ccds[:,::-1]
+                    self.extent[2], self.extent[3] = self.extent[3], self.extent[2]
+        self.ccdsum_recip = ccds.sum(axis = (0,1,2))
+        self.ccdsum_real = ccds.sum(axis = (0,3,4))
+
         self._thetas = (np.pi/2 - np.deg2rad(np.asarray(samths)))[:, np.newaxis, np.newaxis]
         self._gamma = np.deg2rad(np.asarray(gamma))
         self._twotheta = np.deg2rad(np.asarray(twotheta))
-        self.extent = extent
+        
+
         self._K = 2*np.pi/(12.398/energy) #convert beam energy to spatial frequency 
         self.rec_i = None
 
         # define q vector components per ccd pixel per sample orientation
         self.qy = self._K * np.sin(self._gamma) * np.ones(self._thetas.shape) # qy never changes, since sample rotater about qy direction. Multiply by thetas shape to copy qy for each samth
         self.qx = self._K * np.cos(self._gamma) * np.sin(self._twotheta) #calc for samth = 0, will adjust below
-        self.qz = self._K * np.cos(self._gamma) * np.cos(self._twotheta) - self._K #calc for samth = 0, will adjust below. subtract K so Z is defined as into the sample normal (ie [001] = sample normal, from front to back of sample)
+        self.qz = self._K * (np.cos(self._gamma)*np.cos(self._twotheta) - 1) #calc for samth = 0, will adjust below. subtract K so Z is defined as into the sample normal (ie [001] = sample normal, from front to back of sample)
         self.qmag = (self.qx**2 + self.qy**2 + self.qz**2)
 
         # account for rotation in theta (about qy) affecting qx, qz positions on detector
         self.qz = self.qz*np.cos(self._thetas) - self.qx*np.sin(self._thetas) #qz changes as sample theta changes - rotation about qy
         self.qx = self.qz*np.sin(self._thetas) + self.qx*np.cos(self._thetas) #qx changes as sample theta changes - rotation about qy
     
-    def roi(self, reciprocal, real = None):
+    def roi(self, reciprocal, real = None, threshold = 0, plot = True):
         '''
         define reciprocal and realspace rois for analysis. takes two lists of bounding coordinates.
             reciprocal = [ymin, ymax, xmin, xmax]
@@ -113,19 +131,73 @@ class RockingCurve:
         else:
             self.real_i = slice(real[0], real[1])
             self.real_j = slice(real[2], real[3])
+                
+        if plot:
+            fig, ax = plt.subplots(1,2)
+            ax[0].imshow(self.ccdsum_real[self.real_i, self.real_j], origin = 'lower')
+            ax[0].set_title('Realspace ROI')
+            if self._add_scalebar:
+                frgplt.scalebar(1e-6, ax = ax[0]) #assume extent is given in microns
+            ax[1].imshow(self.ccdsum_recip[self.rec_i, self.rec_j])
+            ax[1].set_title('Reciprocal ROI')
+            plt.show()
         
-    def analyze(self):
+    def analyze(self, plot = True, stream = False):
         if self.rec_i is None:
             raise ValueError('Need to define the analysis regions of interest using ".roi()" before running rocking curve analysis')
         ccds_roi = self.ccds[:, self.real_i, self.real_j, self.rec_i, self.rec_j]
         q_mass = ccds_roi.sum(axis = (0,3,4)) #integrate diffraction counts over reciprocal roi + thetas for each realspace pixel
-        self.qx_fitted = (ccds_roi * self.qx[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(0,3,4) / q_mass #center of mass in qx per realspace pixel
-        self.qy_fitted = (ccds_roi * self.qy[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(0,3,4) / q_mass
-        self.qz_fitted = (ccds_roi * self.qz[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(0,3,4) / q_mass
+        self.qx_fitted = (ccds_roi * self.qx[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(axis = (0,3,4)) / q_mass #center of mass in qx per realspace pixel
+        self.qy_fitted = (ccds_roi * self.qy[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(axis = (0,3,4)) / q_mass
+        self.qz_fitted = (ccds_roi * self.qz[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(axis = (0,3,4)) / q_mass
         self.qmag_fitted = np.sqrt(self.qx_fitted**2 + self.qy_fitted**2 + self.qz_fitted**2)
         self.d_fitted = 2*np.pi/self.qmag_fitted
 
         self._align_q_to_sample_normal()
+
+        self.yaw = np.rad2deg(np.arctan2(self.qx_fitted, self.qz_fitted)) #tilt in qxqz plane, degrees
+        self.pitch = np.rad2deg(np.arctan2(self.qy_fitted, self.qz_fitted)) #tilt in qyqz plane, degrees
+        self.roll = np.rad2deg(np.arctan2(self.qx_fitted, self.qy_fitted)) #tilt in qxqy plane, degrees
+        
+        if plot:
+            plt.figure(figsize = (8,8))
+            im = plt.imshow(self.d_fitted, cmap = cmocean.cm.curl, origin = 'lower', extent = self.extent)
+            plt.colorbar(label = r'd-Spacing ($\AA$)')
+            if self._add_scalebar:
+                frgplt.scalebar(1e-6) #assume extent is given in microns
+
+            xv, yv = np.meshgrid(np.linspace(self.extent[0], self.extent[1], self.yaw.shape[1]), np.linspace(self.extent[2], self.extent[3], self.yaw.shape[0]))
+            if stream:
+                xlim0 = plt.xlim()
+                ylim0 = plt.ylim()
+                mag = np.sqrt(self.yaw**2 + self.pitch**2)
+                mag *= 4/np.nanmax(mag)
+                plt.streamplot(
+                    xv[0,:],
+                    yv[:,0],
+                    self.yaw,
+                    self.pitch,
+                    density = 1,
+                    color = [0,0,0,0.7],
+                    linewidth = mag
+                    )
+                plt.xlim(xlim0)
+                plt.ylim(ylim0)
+            else:
+                plt.quiver(
+                    xv[::2, ::2],
+                    yv[::2, ::2],
+                    self.yaw[::2, ::2],
+                    self.pitch[::2, ::2],
+                    angles = 'uv',
+                    pivot = 'middle',
+                    scale_units = 'xy',
+                    headaxislength = 2,
+                    headwidth = 6
+                    )
+            plt.show()
+
+        return {'d': self.d_fitted, 'yaw': self.yaw, 'pitch': self.pitch}
 
     def _align_q_to_sample_normal(self):
         '''
@@ -142,13 +214,51 @@ class RockingCurve:
         qz1 = 1
 
         if np.fabs(qx0) > 1e-2:
-            self.__theta_xy = np.arctan2(-qy0, qx0)
-            self.qx_fitted, self.qy_fitted = self.qx_fitted*np.cos(theta) - self.qy_fitted*np.sin(theta), self.qx_fitted*np.sin(theta) + self.qy_fitted*np.cos(theta)
+            self.__theta_xy = np.arctan2(qy0, -qx0) #(-qy0, qx0) for Laue
+            self.qx_fitted, self.qy_fitted = self.qx_fitted*np.cos(self.__theta_xy) - self.qy_fitted*np.sin(self.__theta_xy), self.qx_fitted*np.sin(self.__theta_xy) + self.qy_fitted*np.cos(self.__theta_xy)
             qx0 = self.qx_fitted.mean()
         
-        self.__theta_xz = np.arctan2(-qx0, -qz0)
-        self.qz_fitted, self.qx_fitted = self.qz_fitted*np.cos(theta) - self.qx_fitted*np.sin(theta), -self.qz_fitted*np.sin(theta) + self.qx_fitted*np.cos(theta)
+        self.__theta_xz = np.arctan2(qx0, qz0) #rotate diffraction vectors to be mean-centered in [001] direction, normal to diffracting planes in Bragg orientation. (-qx0, -qz0) will put this in Laue orientation.
+        self.qz_fitted, self.qx_fitted = self.qz_fitted*np.cos(self.__theta_xz) - self.qx_fitted*np.sin(self.__theta_xz), -self.qz_fitted*np.sin(self.__theta_xz) + self.qx_fitted*np.cos(self.__theta_xz)
         qz0 = self.qz_fitted.mean()
+
+    def strain(self, d0 = None, plot = True):
+        if d0 is None:
+            d0 = self.d_fitted.mean()
+            print('No reference d-spacing provided, all strain values are plotted relative to the mean d-spacing for now. This might not be accurate!')
+        self.strain_fitted = (self.d_fitted/d0 - 1)*100 #strain in %
+
+        if plot:
+            plt.figure()
+            plt.imshow(self.strain_fitted, cmap = cmocean.cm.curl, origin = 'lower', extent = self.extent)
+            if self._add_scalebar:
+                frgplt.scalebar(1e-6) #assume extent is given in microns
+
+            cb = plt.colorbar()
+            cb.set_label('Strain (%)')
+            plt.show()
+            if self._add_scalebar:
+                frgplt.scalebar(1e-6) #assume extent is given in microns
+
+        return self.strain_fitted
+
+    def export(self):
+        dataout = {
+            'qx': self.qx_fitted,
+            'qy': self.qy_fitted,
+            'qz': self.qz_fitted,
+            'qmag': self.qmag_fitted,
+            'rotation': {'xy':self.__theta_xy, 'xz':self.__theta_xz},
+            'counts': self.ccdsum_real[self.real_i, self.real_j],
+            'tiltx': self.pitch,
+            'tilty': self.yaw,
+            'd': self.d_fitted,
+            'extent': self.extent,
+            'geometry': str.lower('Bragg'),
+            'summedccd': self.ccdsum_recip,
+            'ccdroi': self.reciprocal_ROI
+        }
+        return dataout
 
 def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_ROI = [0, 0, None, None], plot = True, extent = None, min_counts = 50, stream = False, savepath = None, geometry = 'bragg'):
     """
