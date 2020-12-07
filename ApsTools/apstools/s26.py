@@ -81,6 +81,8 @@ class RockingCurve:
     '''
     def __init__(self, ccds, samths, gamma, twotheta, energy, extent = None, correct_orientation = False):
         self.ccds = np.asarray(ccds) #5d array of rocking curve data [theta, realy, realx, recipy, recipx]
+        bad_pixel_mask = self.ccds[0].sum(axis = (0,1)) < 0
+        self.ccds[:,:,:,bad_pixel_mask] = 0
         if extent is None:
             self.extent = [0, self.ccds.shape[2], 0, self.ccds.shape[1]]
             self._add_scalebar = False
@@ -104,17 +106,15 @@ class RockingCurve:
         
 
         self._K = 2*np.pi/(12.398/energy) #convert beam energy to spatial frequency 
-        self.rec_i = None
 
         # define q vector components per ccd pixel per sample orientation
-        self.qy = self._K * np.sin(self._gamma) * np.ones(self._thetas.shape) # qy never changes, since sample rotater about qy direction. Multiply by thetas shape to copy qy for each samth
+        self.qy = self._K * np.sin(self._gamma) * np.ones(self._thetas.shape) # qy never changes, since sample rotates about qy direction. Multiply by thetas shape to copy qy for each samth
         self.qx = self._K * np.cos(self._gamma) * np.sin(self._twotheta) #calc for samth = 0, will adjust below
         self.qz = self._K * (np.cos(self._gamma)*np.cos(self._twotheta) - 1) #calc for samth = 0, will adjust below. subtract K so Z is defined as into the sample normal (ie [001] = sample normal, from front to back of sample)
-        self.qmag = (self.qx**2 + self.qy**2 + self.qz**2)
+        self.qmag = np.sqrt(self.qx**2 + self.qy**2 + self.qz**2)
 
         # account for rotation in theta (about qy) affecting qx, qz positions on detector
-        self.qz = self.qz*np.cos(self._thetas) - self.qx*np.sin(self._thetas) #qz changes as sample theta changes - rotation about qy
-        self.qx = self.qz*np.sin(self._thetas) + self.qx*np.cos(self._thetas) #qx changes as sample theta changes - rotation about qy
+        self.qz, self.qx = self.qz*np.cos(self._thetas) - self.qx*np.sin(self._thetas), self.qz*np.sin(self._thetas) + self.qx*np.cos(self._thetas) #qz, qx changes as sample theta changes - rotation about qy
     
     def roi(self, reciprocal, real = None, threshold = 0, plot = True):
         '''
@@ -126,26 +126,59 @@ class RockingCurve:
         self.rec_j = slice(reciprocal[2], reciprocal[3])
 
         if real is None:
-            self.real_i = slice(0, self.ccds.shape[1]-1)
-            self.real_j = slice(0, self.ccds.shape[2]-1)
+            self.real_i = slice(0, self.ccds.shape[1])
+            self.real_j = slice(0, self.ccds.shape[2])
         else:
             self.real_i = slice(real[0], real[1])
             self.real_j = slice(real[2], real[3])
+
+        self.roicts = self.ccds[:,:,:,self.rec_i, self.rec_j].sum(axis = (0,3,4))
+        self.roicts[self.roicts < 0] = 0 #bugfix for negative value pixels, issue with ccd pixel damage
+        self.mask = self.roicts >= threshold
                 
         if plot:
-            fig, ax = plt.subplots(1,2)
-            ax[0].imshow(self.ccdsum_real[self.real_i, self.real_j], origin = 'lower')
+            fig = plt.figure()
+            gs = fig.add_gridspec(2,2)
+            ax = []
+            ax.append(fig.add_subplot(gs[1, 0]))
+            ax.append(fig.add_subplot(gs[1, 1]))
+            ax.append(fig.add_subplot(gs[0, :]))
+
+            im = ax[0].imshow(self.roicts[self.real_i, self.real_j], origin = 'lower', cmap = plt.cm.gray, extent = self.extent, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()))
+            ax[0].imshow(self.apply_mask(self.roicts)[self.real_i, self.real_j], origin = 'lower', cmap = plt.cm.viridis, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()), extent = self.extent, alpha = 0.6)
             ax[0].set_title('Realspace ROI')
+            plt.colorbar(im, ax = ax[0], fraction = 0.046)
+
             if self._add_scalebar:
                 frgplt.scalebar(1e-6, ax = ax[0]) #assume extent is given in microns
-            ax[1].imshow(self.ccdsum_recip[self.rec_i, self.rec_j])
+            im = ax[1].imshow(self.ccdsum_recip[self.rec_i, self.rec_j], norm = LogNorm(), extent = [reciprocal[i] for i in [2,3,1,0]])
+            ax[1].set_aspect('equal')
             ax[1].set_title('Reciprocal ROI')
+            plt.colorbar(im, ax = ax[1], fraction = 0.046)
+
+            ax[2].imshow(self.ccdsum_recip, norm = LogNorm())
+            rect = patches.Rectangle(
+                (reciprocal[2], reciprocal[0]),
+                reciprocal[3]-reciprocal[2],
+                reciprocal[1]-reciprocal[0],
+                linewidth=1,
+                edgecolor='r',
+                facecolor='none'
+                )
+            ax[2].add_artist(rect)
+            plt.tight_layout()
             plt.show()
-        
+    
+    def apply_mask(self, im):
+        im_ = im.copy().astype(float)
+        im_[~self.mask] = np.nan
+        return im_
+
     def analyze(self, plot = True, stream = False):
         if self.rec_i is None:
             raise ValueError('Need to define the analysis regions of interest using ".roi()" before running rocking curve analysis')
         ccds_roi = self.ccds[:, self.real_i, self.real_j, self.rec_i, self.rec_j]
+        ccds_roi[ccds_roi < 0] = 0 #buggy pixels on ccd can read negative. also possible from overflow if ccd files read in int8, other data type with too little range for data.
         q_mass = ccds_roi.sum(axis = (0,3,4)) #integrate diffraction counts over reciprocal roi + thetas for each realspace pixel
         self.qx_fitted = (ccds_roi * self.qx[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(axis = (0,3,4)) / q_mass #center of mass in qx per realspace pixel
         self.qy_fitted = (ccds_roi * self.qy[:, np.newaxis, np.newaxis, self.rec_i, self.rec_j]).sum(axis = (0,3,4)) / q_mass
@@ -155,13 +188,14 @@ class RockingCurve:
 
         self._align_q_to_sample_normal()
 
+
         self.yaw = np.rad2deg(np.arctan2(self.qx_fitted, self.qz_fitted)) #tilt in qxqz plane, degrees
         self.pitch = np.rad2deg(np.arctan2(self.qy_fitted, self.qz_fitted)) #tilt in qyqz plane, degrees
-        self.roll = np.rad2deg(np.arctan2(self.qx_fitted, self.qy_fitted)) #tilt in qxqy plane, degrees
+        self.roll = np.rad2deg(np.arctan2(self.qy_fitted, self.qx_fitted)) #tilt in qxqy plane, degrees
         
         if plot:
             plt.figure(figsize = (8,8))
-            im = plt.imshow(self.d_fitted, cmap = cmocean.cm.curl, origin = 'lower', extent = self.extent)
+            im = plt.imshow(self.apply_mask(self.d_fitted), cmap = cmocean.cm.curl, origin = 'lower', extent = self.extent)
             plt.colorbar(label = r'd-Spacing ($\AA$)')
             if self._add_scalebar:
                 frgplt.scalebar(1e-6) #assume extent is given in microns
@@ -175,8 +209,8 @@ class RockingCurve:
                 plt.streamplot(
                     xv[0,:],
                     yv[:,0],
-                    self.yaw,
-                    self.pitch,
+                    self.apply_mask(self.yaw),
+                    self.apply_mask(self.pitch),
                     density = 1,
                     color = [0,0,0,0.7],
                     linewidth = mag
@@ -187,8 +221,8 @@ class RockingCurve:
                 plt.quiver(
                     xv[::2, ::2],
                     yv[::2, ::2],
-                    self.yaw[::2, ::2],
-                    self.pitch[::2, ::2],
+                    self.apply_mask(self.yaw)[::2, ::2],
+                    self.apply_mask(self.pitch)[::2, ::2],
                     angles = 'uv',
                     pivot = 'middle',
                     scale_units = 'xy',
@@ -214,13 +248,15 @@ class RockingCurve:
         qz1 = 1
 
         if np.fabs(qx0) > 1e-2:
-            self.__theta_xy = np.arctan2(qy0, -qx0) #(-qy0, qx0) for Laue
+            self.__theta_xy = np.arctan2(-qy0, qx0) #(-qy0, qx0) for Laue
             self.qx_fitted, self.qy_fitted = self.qx_fitted*np.cos(self.__theta_xy) - self.qy_fitted*np.sin(self.__theta_xy), self.qx_fitted*np.sin(self.__theta_xy) + self.qy_fitted*np.cos(self.__theta_xy)
             qx0 = self.qx_fitted.mean()
+        else:
+            self.__theta_xy = 0
         
-        self.__theta_xz = np.arctan2(qx0, qz0) #rotate diffraction vectors to be mean-centered in [001] direction, normal to diffracting planes in Bragg orientation. (-qx0, -qz0) will put this in Laue orientation.
-        self.qz_fitted, self.qx_fitted = self.qz_fitted*np.cos(self.__theta_xz) - self.qx_fitted*np.sin(self.__theta_xz), -self.qz_fitted*np.sin(self.__theta_xz) + self.qx_fitted*np.cos(self.__theta_xz)
-        qz0 = self.qz_fitted.mean()
+        self.__theta_xz = np.arctan2(-qx0, -qz0) #rotate diffraction vectors to be mean-centered in [001] direction, normal to diffracting planes in Bragg orientation. (-qx0, -qz0) will put this in Laue orientation.
+        self.qz_fitted, self.qx_fitted = self.qz_fitted*np.cos(self.__theta_xz)+self.qx_fitted*np.sin(self.__theta_xz), -self.qz_fitted*np.sin(self.__theta_xz)+self.qx_fitted*np.cos(self.__theta_xz)
+        # qz0 = self.qz_fitted.mean()
 
     def strain(self, d0 = None, plot = True):
         if d0 is None:
@@ -230,34 +266,34 @@ class RockingCurve:
 
         if plot:
             plt.figure()
-            plt.imshow(self.strain_fitted, cmap = cmocean.cm.curl, origin = 'lower', extent = self.extent)
+            plt.imshow(self.apply_mask(self.strain_fitted), cmap = cmocean.cm.curl, origin = 'lower', extent = self.extent)
             if self._add_scalebar:
                 frgplt.scalebar(1e-6) #assume extent is given in microns
 
             cb = plt.colorbar()
             cb.set_label('Strain (%)')
             plt.show()
-            if self._add_scalebar:
-                frgplt.scalebar(1e-6) #assume extent is given in microns
 
         return self.strain_fitted
 
-    def export(self):
+    def export(self, threshold = 0):
         dataout = {
             'qx': self.qx_fitted,
             'qy': self.qy_fitted,
             'qz': self.qz_fitted,
             'qmag': self.qmag_fitted,
             'rotation': {'xy':self.__theta_xy, 'xz':self.__theta_xz},
-            'counts': self.ccdsum_real[self.real_i, self.real_j],
-            'tiltx': self.pitch,
-            'tilty': self.yaw,
-            'd': self.d_fitted,
+            'counts': self.roicts,
+            'tiltx': self.apply_mask(self.pitch),
+            'tilty': self.apply_mask(self.yaw),
+            'd': self.apply_mask(self.d_fitted),
+            'mask': self.mask,
             'extent': self.extent,
             'geometry': str.lower('Bragg'),
             'summedccd': self.ccdsum_recip,
-            'ccdroi': self.reciprocal_ROI
+            'recip_roi': [self.rec_i, self.rec_j]
         }
+
         return dataout
 
 def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_ROI = [0, 0, None, None], plot = True, extent = None, min_counts = 50, stream = False, savepath = None, geometry = 'bragg'):
@@ -511,6 +547,9 @@ def overlay_ccd_angles(calibration_image, levels, label_levels = None, ax = None
 
     if label_levels is None:
         label_levels = levels
+    elif type(label_levels) is dict:
+        label_kwargs['fmt'] = label_levels
+        label_levels = list(label_levels.keys())
     _label_kwargs = dict(
         levels = label_levels,
         inline = True,
