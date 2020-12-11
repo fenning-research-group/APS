@@ -523,6 +523,44 @@ def rocking_curve(ccds, qmat, thvals, reciprocal_ROI = [0, 0, None, None], real_
 
     return dataout
 
+def plot_rockingcurve(d, tiltx, tilty, stream = False, extent = None, ax = None):
+    if ax is None:
+        ax = plt.gca()
+    if extent is None:
+        extent = [0, d.shape[1], 0, d.shape[0]]
+
+    im = ax.imshow(d, cmap = cmocean.cm.curl, origin = 'lower', extent = extent)
+    # plt.colorbar(label = r'd-Spacing ($\AA$)')
+
+    xv, yv = np.meshgrid(np.linspace(extent[0], extent[1], tiltx.shape[1]), np.linspace(extent[2], extent[3], tilty.shape[0]))
+    if stream:
+        xlim0 = plt.xlim()
+        ylim0 = plt.ylim()
+        mag = np.sqrt(tiltx**2 + tilty**2)
+        mag *= 4/np.nanmax(mag)
+        ax.streamplot(
+            xv[0,:],
+            yv[:,0],
+            tiltx,
+            tilty,
+            density = 1,
+            color = [0,0,0,0.7],
+            linewidth = mag
+            )
+        ax.set_xlim(xlim0)
+        ax.set_ylim(ylim0)
+    else:
+        ax.quiver(
+            xv[::2, ::2],
+            yv[::2, ::2],
+            tiltx,
+            tilty,
+            angles = 'uv',
+            pivot = 'middle',
+            scale_units = 'xy',
+            headaxislength = 2,
+            headwidth = 6
+            )
 
 ### plotting functions
 def overlay_ccd_angles(calibration_image, levels, label_levels = None, ax = None, label_kwargs = {}, contour_kwargs = {}):
