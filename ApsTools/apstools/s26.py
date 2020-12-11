@@ -22,6 +22,7 @@ from PIL import Image
 import pandas as pd
 from .helpers import _load_image_rek
 import re
+from scikit.optimize import curve_fit
 
 FRG_H5_PREFIX = '26idbSOFT_FRG_'
 
@@ -100,6 +101,7 @@ class RockingCurve:
         self.ccdsum_recip = ccds.sum(axis = (0,1,2))
         self.ccdsum_real = ccds.sum(axis = (0,3,4))
 
+        self._samths = samths
         self._thetas = (np.pi/2 - np.deg2rad(np.asarray(samths)))[:, np.newaxis, np.newaxis]
         self._gamma = np.deg2rad(np.asarray(gamma))
         self._twotheta = np.deg2rad(np.asarray(twotheta))
@@ -144,7 +146,7 @@ class RockingCurve:
             ax.append(fig.add_subplot(gs[1, 1]))
             ax.append(fig.add_subplot(gs[0, :]))
 
-            im = ax[0].imshow(self.roicts[self.real_i, self.real_j], origin = 'lower', cmap = plt.cm.gray, extent = self.extent, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()))
+            im = ax[0].imshow(self.roicts[self.rPReal_i, self.real_j], origin = 'lower', cmap = plt.cm.gray, extent = self.extent, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()))
             ax[0].imshow(self.apply_mask(self.roicts)[self.real_i, self.real_j], origin = 'lower', cmap = plt.cm.viridis, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()), extent = self.extent, alpha = 0.6)
             ax[0].set_title('Realspace ROI')
             plt.colorbar(im, ax = ax[0], fraction = 0.046)
@@ -174,6 +176,30 @@ class RockingCurve:
         im_[~self.mask] = np.nan
         return im_
 
+    def fix_angles(self, angle):
+        if angle > 160:
+            angle -= 180
+        elif angle < -160:
+            angle += 180
+        return angle
+
+    def _fit_theta_fwhm(self):
+        def gaussian(x, amplitude, center, sigma):
+            return amplitude * np.exp(-(x-center)**2 / (2*sigma**2))
+        x = self._samths
+        self.theta_fwhm = np.full((self.ccds.shape[1], self.ccds.shape[2]), np.nan)
+        for m,n in tqdm(np.ndindex(self.theta_fwhm.shape), total = np.product(self.theta_fwhm.shape)):
+            y = self.rc.ccds[:,m,n,rc.rec_i, rc.rec_j].sum(axis = (1,2))
+            p0 = [y.max(), self._samths.mean(), 0.5]
+            bounds = [[0,self._samths[0], 0], [y.max() * 2, self._samths[-1], 10]]
+    #         print(p0)
+            try:
+                popt, _ = curve_fit(func, x, y, p0, bounds = bounds) 
+                if popt[2] != 10: #max value, nonsensical. implies flat cts vs samth aka no counts.
+                   self.fwhm[m,n] = popt[2]
+            except:
+                pass
+
     def analyze(self, plot = True, stream = False):
         if self.rec_i is None:
             raise ValueError('Need to define the analysis regions of interest using ".roi()" before running rocking curve analysis')
@@ -187,12 +213,15 @@ class RockingCurve:
         self.d_fitted = 2*np.pi/self.qmag_fitted
 
         self._align_q_to_sample_normal()
-
+        self._fit_theta_fwhm()
 
         self.yaw = np.rad2deg(np.arctan2(self.qx_fitted, self.qz_fitted)) #tilt in qxqz plane, degrees
         self.pitch = np.rad2deg(np.arctan2(self.qy_fitted, self.qz_fitted)) #tilt in qyqz plane, degrees
         self.roll = np.rad2deg(np.arctan2(self.qy_fitted, self.qx_fitted)) #tilt in qxqy plane, degrees
         
+        self.yaw = self.fix_angles(self.yaw)
+        self.pitch = self.fix_angles(self.pitch)
+        self.roll = self.fix_angles(self.roll)
         if plot:
             plt.figure(figsize = (8,8))
             im = plt.imshow(self.apply_mask(self.d_fitted), cmap = cmocean.cm.curl, origin = 'lower', extent = self.extent)
@@ -282,6 +311,8 @@ class RockingCurve:
             'qy': self.qy_fitted,
             'qz': self.qz_fitted,
             'qmag': self.qmag_fitted,
+            'theta_fwhm': self.theta_fwhm,
+            'samths': self._samths,
             'rotation': {'xy':self.__theta_xy, 'xz':self.__theta_xz},
             'counts': self.roicts,
             'tiltx': self.apply_mask(self.pitch),
