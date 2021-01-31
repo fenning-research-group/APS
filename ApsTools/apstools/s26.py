@@ -22,7 +22,7 @@ from PIL import Image
 import pandas as pd
 from .helpers import _load_image_rek
 import re
-from scikit.optimize import curve_fit
+from scipy.optimize import curve_fit
 
 FRG_H5_PREFIX = '26idbSOFT_FRG_'
 
@@ -177,28 +177,27 @@ class RockingCurve:
         return im_
 
     def fix_angles(self, angle):
-        if angle > 160:
-            angle -= 180
-        elif angle < -160:
-            angle += 180
+        angle[angle>160] -= 180
+        angle[angle<-160] += 180
         return angle
 
-    def _fit_theta_fwhm(self):
+    def _fit_theta_fwhm(self, ccds):
         def gaussian(x, amplitude, center, sigma):
             return amplitude * np.exp(-(x-center)**2 / (2*sigma**2))
-        x = self._samths
-        self.theta_fwhm = np.full((self.ccds.shape[1], self.ccds.shape[2]), np.nan)
-        for m,n in tqdm(np.ndindex(self.theta_fwhm.shape), total = np.product(self.theta_fwhm.shape)):
-            y = self.rc.ccds[:,m,n,rc.rec_i, rc.rec_j].sum(axis = (1,2))
-            p0 = [y.max(), self._samths.mean(), 0.5]
-            bounds = [[0,self._samths[0], 0], [y.max() * 2, self._samths[-1], 10]]
+        x = np.array(self._samths)
+        theta_fwhm = np.full((ccds.shape[1], ccds.shape[2]), np.nan)
+        for m,n in tqdm(np.ndindex(theta_fwhm.shape), total = np.product(theta_fwhm.shape)):
+            y = ccds[:,m,n].sum(axis = (1,2))
+            p0 = [y.max(), x.mean(), 0.5]
+            bounds = [[0,x.min(), 0], [y.max() * 2, x.max(), 10]]
     #         print(p0)
             try:
-                popt, _ = curve_fit(func, x, y, p0, bounds = bounds) 
+                popt, _ = curve_fit(gaussian, x, y, p0, bounds = bounds) 
                 if popt[2] != 10: #max value, nonsensical. implies flat cts vs samth aka no counts.
-                   self.fwhm[m,n] = popt[2]
+                   theta_fwhm[m,n] = popt[2]
             except:
                 pass
+        return theta_fwhm
 
     def analyze(self, plot = True, stream = False):
         if self.rec_i is None:
@@ -213,7 +212,7 @@ class RockingCurve:
         self.d_fitted = 2*np.pi/self.qmag_fitted
 
         self._align_q_to_sample_normal()
-        self._fit_theta_fwhm()
+        self.theta_fwhm = self._fit_theta_fwhm(ccds_roi)
 
         self.yaw = np.rad2deg(np.arctan2(self.qx_fitted, self.qz_fitted)) #tilt in qxqz plane, degrees
         self.pitch = np.rad2deg(np.arctan2(self.qy_fitted, self.qz_fitted)) #tilt in qyqz plane, degrees
@@ -311,7 +310,7 @@ class RockingCurve:
             'qy': self.qy_fitted,
             'qz': self.qz_fitted,
             'qmag': self.qmag_fitted,
-            'theta_fwhm': self.theta_fwhm,
+            'theta_fwhm': self.apply_mask(self.theta_fwhm),
             'samths': self._samths,
             'rotation': {'xy':self.__theta_xy, 'xz':self.__theta_xz},
             'counts': self.roicts,
