@@ -14,7 +14,6 @@ setup(
 		'opencv-python',
 		'tqdm',
 		'scikit-image',
-		'multiprocessing',
 		'cmocean',
 		'pandas'
 		],
