@@ -146,7 +146,7 @@ class RockingCurve:
             ax.append(fig.add_subplot(gs[1, 1]))
             ax.append(fig.add_subplot(gs[0, :]))
 
-            im = ax[0].imshow(self.roicts[self.rPReal_i, self.real_j], origin = 'lower', cmap = plt.cm.gray, extent = self.extent, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()))
+            im = ax[0].imshow(self.roicts[self.real_i, self.real_j], origin = 'lower', cmap = plt.cm.gray, extent = self.extent, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()))
             ax[0].imshow(self.apply_mask(self.roicts)[self.real_i, self.real_j], origin = 'lower', cmap = plt.cm.viridis, norm = LogNorm(vmin = np.max([1, self.roicts.min()]), vmax = self.roicts.max()), extent = self.extent, alpha = 0.6)
             ax[0].set_title('Realspace ROI')
             plt.colorbar(im, ax = ax[0], fraction = 0.046)
