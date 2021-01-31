@@ -13,7 +13,7 @@ setup(
 		'numpy',
 		'opencv-python',
 		'tqdm',
-		'skimage',
+		'scikit-image',
 		'multiprocessing',
 		'cmocean',
 		'pandas'
