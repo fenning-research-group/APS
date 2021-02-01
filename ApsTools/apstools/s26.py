@@ -22,7 +22,7 @@ from PIL import Image
 import pandas as pd
 from .helpers import _load_image_rek
 import re
-from scikit.optimize import curve_fit
+from scipy.optimize import curve_fit
 
 FRG_H5_PREFIX = '26idbSOFT_FRG_'
 
@@ -1193,7 +1193,7 @@ def _MDADataToH5(data, h5directory, imagedirectory, twothetaccdpath, gammaccdpat
                 intxrdcounts.attrs['description'] = 'Collapsed, area-integrated diffraction counts.'
 
                 allimgpaths = [os.path.join(imagedirectory, str(data['scan']), f) for f in os.listdir(os.path.join(imagedirectory, str(data['scan'])))]
-                allimgpathnums = [int(re.match(r'scan_(\d*)_\D*_(\d*).tif', f).group(1)) for f in allimgpaths]
+                allimgpathnums = [int(re.match(r'scan_\d*_\D*_(\d*).tif', os.path.basename(f)).group(1)) for f in allimgpaths]
                 imgpaths = [allimgpaths[allimgpathnums.index(pn)] for pn in imnums.ravel()]
                 # imgpaths = [os.path.join(imagedirectory, str(data['scan']), 'scan_{0}_pil_{1:05d}.tif'.format(data['scan'], int(x))) for x in imnums.ravel()]
                 print('Loading Images')
