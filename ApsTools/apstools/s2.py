@@ -1,5 +1,5 @@
 import h5py
-import numpy
+import numpy as np
 
 def load_h5(fpath, clip_flyscan = True, xbic_on_dsic = False, quant_scaler = 'us_ic'):
     '''
