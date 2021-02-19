@@ -23,15 +23,15 @@ def load_h5(fpath, clip_flyscan = True, xbic_on_dsic = False, quant_scaler = 'us
     
 
 
-    output = {}
+    output = {'filepath': fpath}
     if clip_flyscan:
         xmask = slice(0,-2) #last two columns are garbage from flyscan, omit here
     else:
         xmask = slice(0,None) #no clipping
-
+        
     with h5py.File(fpath, 'r') as dat:
         output['x'] = dat['MAPS']['x_axis'][()]
-        output['y'] = dat['MAPS']['y_axis'][()]    
+        output['y'] = dat['MAPS']['y_axis'][()]   
         output['spectra'] = np.moveaxis(dat['MAPS']['mca_arr'][()], 0, 2)[:,xmask] #y by x by energy, full XRF spectra
         output['energy'] = dat['MAPS']['energy'][:output['spectra'].shape[-1]] #specmap only has 2000 bins sometimes, match energy to that
         output['intspectra'] = dat['MAPS']['int_spec'][:output['spectra'].shape[-1]] #integrated spectra
