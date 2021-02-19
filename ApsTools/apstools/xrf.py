@@ -174,7 +174,6 @@ def self_absorption_film(material: Material, thickness, incidentenergy, xrfenerg
 
     return xrfFraction
 
-
 class ParticleXRF:
     def __init__(self, z, scale, sample_theta, detector_theta):
         # self.material = material
