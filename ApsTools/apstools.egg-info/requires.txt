@@ -1,0 +1,10 @@
+h5py
+scipy
+matplotlib
+numpy
+opencv-python
+tqdm
+scikit-image
+cmocean
+pandas
+frgtools@ git+https://github.com/fenning-research-group/Python-Utilities.git#egg=frgtools&subdirectory=FrgTools

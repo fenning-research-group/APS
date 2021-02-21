@@ -1,12 +1,16 @@
 setup.py
 apstools/__init__.py
 apstools/helpers.py
+apstools/mucal.py
+apstools/ptycho.py
 apstools/readMDA.py
+apstools/s2.py
 apstools/s26.py
 apstools/xrf.py
 apstools.egg-info/PKG-INFO
 apstools.egg-info/SOURCES.txt
 apstools.egg-info/dependency_links.txt
+apstools.egg-info/requires.txt
 apstools.egg-info/top_level.txt
 apstools/include/Element Properties.json
 apstools/include/Element Properties.txt

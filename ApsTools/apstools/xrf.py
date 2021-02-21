@@ -109,17 +109,17 @@ class Material:
         returns x-ray attenuation coefficient, in cm-1, given:
             energy: x-ray energy(ies) (keV)
         '''
-        N_a = 6.022e23
+        Na = 6.022e23
         c = (1e-19)/(np.pi*0.9111)  # keV*cm^2
         energy = np.array(energy)
         f2 = 0
         mass = 0
         for i, (el, num) in enumerate(self.elements.items()):
-            _, f2temp = scattering_factor(el, energy)
-            f2 = f2 + num*f2temp
-            mass = mass + num*molar_mass(el)
+            _, f2_ = scattering_factor(el, energy)
+            f2 += num*f2_
+            mass += num*molar_mass(el)
 
-        mu = (self.density*N_a/mass) * (2*c/energy) * f2
+        mu = (self.density*Na/mass) * (2*c/energy) * f2
         return mu
     
     def attenuation_length(self, energy):
@@ -141,6 +141,30 @@ class Material:
         t = np.exp(-mu*thickness)
 
         return t
+
+    def phase_delay(self, thickness, energy):
+        '''
+        calculates phase delay (radians) of photons passing through material slab.
+        useful for predicting phase contrast in ptychography measurements.
+        '''
+        r_e = 2.8179403227e-13; #classical radius of electron, cm            
+        h = 4.135667516e-18; #plancks constant, keV/sec 
+        c = 299792458e2; #speed of light, cm/s
+        Na = 6.022e23 #avogadros number, atoms/mol
+
+        wl = h*c/np.asarray(energy) #photon wavelengths, cm
+
+        f1 = 0
+        mass = 0
+        for el, num in self.elements.items():
+            f1_, _ = scattering_factor(el, energy)
+            f1 += num*f1_
+            mass += num*molar_mass(el)
+
+        delta = f1*(self.density*Na/mass) * (r_e/2/np.pi) * (wl**2)
+        phase_delay = 2*np.pi*delta*thickness/wl
+
+        return phase_delay
 
 ### self-absorption
 
@@ -427,8 +451,6 @@ class ParticleXRF:
             in_bounds = self.__check_if_in_simulation_bounds(i,j,k)                        
 
         return attenuation_points, n_emission_steps
-
-
 
 # step_cm = np.sqrt((step_j*xscale)**2 + (step_k*zscale)**2) * 1e-4
 #         step_transmission = np.exp(-mu_incident * step_cm)
