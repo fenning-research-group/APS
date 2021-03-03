@@ -20,8 +20,6 @@ def load_h5(fpath, clip_flyscan = True, xbic_on_dsic = False, quant_scaler = 'us
     }
     if quant_scaler not in quant_scaler_key:
         raise ValueError(f'Quantification normalization must be by either sr_current, us_ic, or ds_ic! user provided {quant_scaler}.')
-    
-
 
     output = {'filepath': fpath}
     if clip_flyscan:
@@ -40,6 +38,7 @@ def load_h5(fpath, clip_flyscan = True, xbic_on_dsic = False, quant_scaler = 'us
         scaler_names = dat['MAPS']['scaler_names'][()].astype('U13').tolist()
         quant_scaler_values = np.array(dat['MAPS']['scalers'][scaler_names.index(quant_scaler)])[:,xmask]
         quant_scaler_values = np.where(quant_scaler_values == 0.0 , 1.0 , quant_scaler_values) # change all values that are 0.0 to 1.0, avoid divide by 0
+        quant_scaler_values /= quant_scaler_values.mean()
         if '/MAPS/XRF_fits' in dat:
             xrf = []
             raw = dat['MAPS']['XRF_fits'][:,:,xmask] #xrf elemental maps, elements by y by x
@@ -50,7 +49,7 @@ def load_h5(fpath, clip_flyscan = True, xbic_on_dsic = False, quant_scaler = 'us
                 xrf.append(x/quantfactor/4) #factor of 4 came from discussion w/ Arthur Glowacki @ APS, and brings this value in agreement with MAPS displayed value. not sure why it is necessary though...
             output['fitted'] = True
         else:
-            xrf = dat['MAPS']['XRF_roi'][:,:,xmask]
+            xrf = dat['MAPS']['XRF_roi'][:,:,xmask] / quant_scaler_values[np.newaxis, :, :]
             output['fitted'] = False
         
         allchan = dat['MAPS']['channel_names'][()].astype('U13').tolist()
