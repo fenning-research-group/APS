@@ -648,12 +648,12 @@ def find_ROIs(ccds, thvals, bin_size = 1, min_intensity = 3, centroid_distance_t
         regions.append(r)
         return regions
 
-    ccds = np.array(ccds)
+    #ccds = np.array(ccds)
     iterable = []
     m = 0
-    while m <= ccds.shape[1] - bin_size:
+    while m <= ccds.shape[0] - bin_size:
         n = 0
-        while n <= ccds.shape[2] - bin_size:
+        while n <= ccds.shape[1] - bin_size:
             iterable.append((m,n))
             n = n + bin_size
         m = m + bin_size
@@ -663,21 +663,23 @@ def find_ROIs(ccds, thvals, bin_size = 1, min_intensity = 3, centroid_distance_t
         if log:
             allregions = [_findRegionsLi(
                             *r,
-                            ccds = np.log(ccds.sum(0)),
+                            ccds = ccds,
                             min_area = area_threshold,
                             bin_size = bin_size,
                             min_intensity = min_intensity,
-                            tolerance = filter_tolerance)
+                            tolerance = filter_tolerance,
+                            log=log)
                             for r in tqdm(iterable)
                             ]
         else:
             allregions = [_findRegionsLi(
                             *r,
-                            ccds = ccds.sum(0),
+                            ccds = ccds,
                             min_area = area_threshold,
                             bin_size = bin_size,
                             min_intensity = min_intensity,
-                            tolerance = filter_tolerance)
+                            tolerance = filter_tolerance,
+                            log=log)
                             for r in tqdm(iterable)
                             ]            
     else:
@@ -689,7 +691,7 @@ def find_ROIs(ccds, thvals, bin_size = 1, min_intensity = 3, centroid_distance_t
             # iterable = [(x[0], x[1]) for x in np.ndindex(ccds.shape[1]-bin_size, ccds.shape[2]-bin_size)]
             # iterable = [(x[0], x[1]) for x in np.ndindex(2,2)]
             if log:
-                for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = np.log(ccds.sum(0)), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
+                for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = np.log(ccds), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
                     # if type(r) is not list:
                     #   r = [r]
                     #   for r_ in r:
@@ -697,7 +699,7 @@ def find_ROIs(ccds, thvals, bin_size = 1, min_intensity = 3, centroid_distance_t
                     #           updateRegions(r_, regions)
                     allregions.append(r)
             else:
-                for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
+                for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds, min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
                     # if type(r) is not list:
                     #   r = [r]
                     #   for r_ in r:
@@ -714,7 +716,7 @@ def find_ROIs(ccds, thvals, bin_size = 1, min_intensity = 3, centroid_distance_t
                 updateRegions(r, regions)
 
     if plot:
-        roiimg = np.full((ccds.shape[3], ccds.shape[4]), np.nan)
+        roiimg = np.full((ccds.shape[2], ccds.shape[3]), np.nan)
         bgimg = np.ones(roiimg.shape)
         for ridx, r in enumerate(regions):
             for m, n in r.coords:
@@ -733,7 +735,7 @@ def find_ROIs(ccds, thvals, bin_size = 1, min_intensity = 3, centroid_distance_t
             dfData[c].append(getattr(r,c))
     df = pd.DataFrame(dfData)
     
-    summedccd = ccds.sum(axis = (0,1,2))
+    summedccd = ccds.sum(axis = (0,1))
     def summedintensity(bbox):
         cts = summedccd[
             bbox[0]:bbox[2],
@@ -1031,9 +1033,12 @@ def _findRegionsFlatThreshold(m,n, ccds, min_area = 2, min_intensity = 0.5, bin_
     # return regionprops(mask_labels, intensity_image = ccds0)
     return [x for x in regionprops(mask_labels, intensity_image = ccds0) if x.area >= min_area and x.max_intensity > min_intensity] #, intensity_image = ccds0)
 
-def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2, tolerance = 2):
+def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2, tolerance = 2, log=True):
 
-    ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+    if log:
+        ccds0 = np.log(ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0))
+    else:
+        ccds0 = ccds[m:m+bin_size,n:n+bin_size].sum(0).sum(0)
     ccd_thresh = filters.threshold_li(ccds0, tolerance = tolerance) 
     # ccd_thresh = filters.threshold_local(ccds0,block_size=41, offset=0) 
     mask = ccds0 > ccd_thresh
