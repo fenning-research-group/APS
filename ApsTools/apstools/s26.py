@@ -637,7 +637,7 @@ def overlay_ccd_angles(calibration_image, levels, label_levels = None, ax = None
 
 ### scripts for working with Daemon-generated H5 Files
 
-def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_distance_threshold = 10, area_threshold = 10, filter_tolerance = 2, savedir = None, plot = True, log = False):
+def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_distance_threshold = 10, area_threshold = 10, filter_tolerance = 2, savedir = None, plot = True, log = False, n_processes=1):
     def scanfid(scannum, filetype = 'h5'):
         if filetype == 'h5':
             return (os.path.join(h5dir, '{0}{1:04d}.h5'.format(FRG_H5_PREFIX, scannum)))
@@ -673,39 +673,62 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
             thvals.append(d['detectors'][60][0,0])
 
     ccds = np.array(ccds)
+    iterable = []
+    m = 0
+    while m <= ccds.shape[1] - bin_size:
+        n = 0
+        while n <= ccds.shape[2] - bin_size:
+            iterable.append((m,n))
+            n = n + bin_size
+        m = m + bin_size
+    if n_processes==1:
 
-    print('Starting multiprocessing pool')
-    allregions = []
-    os.environ["OPENBLAS_MAIN_FREE"] = "1"
-    with mp.Pool(6) as p:
-        print('Segmenting regions per map point')
-
-        iterable = []
-        m = 0
-        while m <= ccds.shape[1] - bin_size:
-            n = 0
-            while n <= ccds.shape[2] - bin_size:
-                iterable.append((m,n))
-                n = n + bin_size
-            m = m + bin_size
         # iterable = [(x[0], x[1]) for x in np.ndindex(ccds.shape[1]-bin_size, ccds.shape[2]-bin_size)]
         # iterable = [(x[0], x[1]) for x in np.ndindex(2,2)]
         if log:
-            for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = np.log(ccds.sum(0)), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
-                # if type(r) is not list:
-                #   r = [r]
-                #   for r_ in r:
-                #       if r_.area >= 10:
-                #           updateRegions(r_, regions)
-                allregions.append(r)
+            allregions = [_findRegionsLi(
+                            *r,
+                            ccds = np.log(ccds.sum(0)),
+                            min_area = area_threshold,
+                            bin_size = bin_size,
+                            min_intensity = min_intensity,
+                            tolerance = filter_tolerance)
+                            for r in tqdm(iterable)
+                            ]
         else:
-            for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
-                # if type(r) is not list:
-                #   r = [r]
-                #   for r_ in r:
-                #       if r_.area >= 10:
-                #           updateRegions(r_, regions)
-                allregions.append(r)
+            allregions = [_findRegionsLi(
+                            *r,
+                            ccds = ccds.sum(0),
+                            min_area = area_threshold,
+                            bin_size = bin_size,
+                            min_intensity = min_intensity,
+                            tolerance = filter_tolerance)
+                            for r in tqdm(iterable)
+                            ]            
+    else:
+        print('Starting multiprocessing pool')
+        allregions = []
+        os.environ["OPENBLAS_MAIN_FREE"] = "1"
+        with mp.Pool(n_processes) as p:
+            print('Segmenting regions per map point')
+            # iterable = [(x[0], x[1]) for x in np.ndindex(ccds.shape[1]-bin_size, ccds.shape[2]-bin_size)]
+            # iterable = [(x[0], x[1]) for x in np.ndindex(2,2)]
+            if log:
+                for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = np.log(ccds.sum(0)), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
+                    # if type(r) is not list:
+                    #   r = [r]
+                    #   for r_ in r:
+                    #       if r_.area >= 10:
+                    #           updateRegions(r_, regions)
+                    allregions.append(r)
+            else:
+                for r in tqdm(p.istarmap(partial(_findRegionsLi, ccds = ccds.sum(0), min_area = area_threshold, bin_size = bin_size, min_intensity = min_intensity, tolerance = filter_tolerance), iterable, chunksize = 150), total=len(iterable)):
+                    # if type(r) is not list:
+                    #   r = [r]
+                    #   for r_ in r:
+                    #       if r_.area >= 10:
+                    #           updateRegions(r_, regions)
+                    allregions.append(r)
 
     regions = []
     for rs in tqdm(allregions):
@@ -1045,18 +1068,16 @@ def _findRegionsLi(m,n, ccds, min_area = 10, min_intensity = 3, bin_size = 2, to
 
 
 def __istarmap(self, func, iterable, chunksize=1):
-    """starmap-version of imap
+    """starmap-version of imap, Python 3.8+
     """
-    if self._state != mpp.RUN:
-        raise ValueError("Pool not running")
-
+    self._check_running()
     if chunksize < 1:
         raise ValueError(
             "Chunksize must be 1+, not {0:n}".format(
                 chunksize))
 
     task_batches = mpp.Pool._get_tasks(func, iterable, chunksize)
-    result = mpp.IMapIterator(self._cache)
+    result = mpp.IMapIterator(self)
     self._taskqueue.put(
         (
             self._guarded_task_generation(result._job,

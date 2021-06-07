@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
 	name='apstools',
-	version='0.1dev',
+	version='0.2dev',
 	packages=['apstools'],
 	package_dir={'apstools': 'apstools'},
 	package_data={'apstools': ['include/*']},
