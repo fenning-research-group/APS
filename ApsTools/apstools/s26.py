@@ -637,13 +637,7 @@ def overlay_ccd_angles(calibration_image, levels, label_levels = None, ax = None
 
 ### scripts for working with Daemon-generated H5 Files
 
-def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_distance_threshold = 10, area_threshold = 10, filter_tolerance = 2, savedir = None, plot = True, log = False, n_processes=1):
-    def scanfid(scannum, filetype = 'h5'):
-        if filetype == 'h5':
-            return (os.path.join(h5dir, '{0}{1:04d}.h5'.format(FRG_H5_PREFIX, scannum)))
-        elif filetype == 'mda':
-            return (os.path.join(mdadir, '26idbSOFT_{0:04d}.mda'.format(scannum)))
-
+def find_ROIs(ccds, thvals, bin_size = 1, min_intensity = 3, centroid_distance_threshold = 10, area_threshold = 10, filter_tolerance = 2, plot = True, log = False, n_processes=1):
     def updateRegions(r, regions, centroid_distance_threshold = centroid_distance_threshold):
         for ridx, r_ in enumerate(regions):
             if np.linalg.norm([a - b for a,b in zip(r.centroid, r_.centroid)]) <= centroid_distance_threshold: #euclidean dsitance - centroids are close enough that we are assuming these regions are the same
@@ -653,24 +647,6 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
         #if we make it here, we have a new region
         regions.append(r)
         return regions
-        
-    analysisdir = os.path.join(rootdir, 'Analysis')
-    h5dir = os.path.join(rootdir, 'h5')
-    mdadir = os.path.join(rootdir, 'mda')
-    if savedir is None:
-        savedir = os.path.join(rootdir, 'RC_ROIs.pkl')
-
-    print('Loading CCD images')
-    ccds = []
-    thvals = []
-    for idx, s in tqdm(enumerate(scannums), total = len(scannums)):
-        fid = scanfid(s)
-        with h5py.File(fid, 'r') as d:
-            if idx == 0:
-                twotheta = d['xrd']['im']['twotheta'][()]
-
-            ccds.append(d['xrd']['im']['ccd'][()].astype(np.int16))
-            thvals.append(d['detectors'][60][0,0])
 
     ccds = np.array(ccds)
     iterable = []
@@ -682,7 +658,6 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
             n = n + bin_size
         m = m + bin_size
     if n_processes==1:
-
         # iterable = [(x[0], x[1]) for x in np.ndindex(ccds.shape[1]-bin_size, ccds.shape[2]-bin_size)]
         # iterable = [(x[0], x[1]) for x in np.ndindex(2,2)]
         if log:
@@ -777,7 +752,7 @@ def find_ROIs(scannums, rootdir, bin_size = 1, min_intensity = 3, centroid_dista
 
     df.sort_values(['summed_max_intensity','summed_mean_intensity', 'max_intensity', 'area'], inplace = True, ascending = False)
 
-    return df, ccds
+    return df
 
 def diffraction_map(fpath, twotheta = None, q = None, ax = None, tol = 2):
     """
