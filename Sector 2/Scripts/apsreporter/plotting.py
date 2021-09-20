@@ -4,9 +4,13 @@ from matplotlib.text import Text
 from matplotlib import cm
 from matplotlib_scalebar.scalebar import ScaleBar
 import matplotlib.colors as colors
+import matplotlib.transforms as transforms
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,AutoMinorLocator)
 import os
 import numpy as np
+import json
+
+ROOT_DIR = os.path.dirname(__file__)
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
 	new_cmap = colors.LinearSegmentedColormap.from_list(
@@ -50,7 +54,8 @@ def plotxrf(outputfolder, scan, channel, x, y, xrf, overwrite = True, logscale =
 			interpolation = 'none',
 			vmin = vmin,
 			vmax = vmax,
-			norm = colors.LogNorm())
+			norm = colors.LogNorm(),
+			origin = 'lower')
 
 		## text + scalebar objects
 		opacity = 1
@@ -79,6 +84,7 @@ def plotxrf(outputfolder, scan, channel, x, y, xrf, overwrite = True, logscale =
 			verticalalignment = 'top')    
 
 		ax.add_artist(scalebar)
+		plt.axis('equal')
 		plt.axis('off')
 		plt.gca().set_position([0, 0, 1, 1])
 		plt.savefig(savepath, format=image_format, dpi=300)
@@ -124,14 +130,16 @@ def plotoverview(outputfolder, scan, scandat):
 		color_counter = color_counter + 1
 	ax.autoscale(enable = True)
 	plt.tight_layout()
-	
+	plt.axis('equal')
+	ax.title.set_text('Map Location Overview (um)')
+
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):
 		os.mkdir(savefolder)
 
 	image_format = 'jpeg'
 	savepath = os.path.join(savefolder, 'overviewmap.' + image_format)
-	plt.savefig(savepath, format=image_format, dpi=300)
+	plt.savefig(savepath, format=image_format, dpi=300, bbox_inches = 'tight')
 	plt.close() 
 
 	return savepath
@@ -156,26 +164,36 @@ def plotintegratedxrf(outputfolder, scan, scandat):
 	plt.gca().xaxis.set_major_locator(MultipleLocator(1))
 	plt.gca().xaxis.set_minor_locator(MultipleLocator(0.2))
 	plt.grid(True)		
+	ax.title.set_text('Integrated XRF Spectrum')
 
-	# color_counter = 0
-	# for each_box in box_params:
-	# 	if each_box[4] == scan:
-	# 		opacity = 0.8	#highlight the selected scan
-	# 	else:
-	# 		opacity = 0.15
+	# add tick marks for elements
+	with open(os.path.join(ROOT_DIR, 'xrflines.json'), 'r') as f:
+		emissionlines = json.load(f)
 
-	# 	color = cm.get_cmap('Set1')(color_counter)
-	# 	hr = Rectangle(each_box[1], each_box[2], each_box[3], 
-	# 					picker = True, 
-	# 					facecolor = color, 
-	# 					alpha = opacity, 
-	# 					edgecolor = [0, 0, 0],
-	# 					label = each_box[4])
-	# 	ax.add_patch(hr)
-	# 	color_counter = color_counter + 1
-	# ax.autoscale(enable = True)
-	# plt.tight_layout()
-	
+	elements = []
+	for channel in list(scandat['xrf'].keys()):
+		if (':' not in channel) and (channel is not 'XBIC'):	#skip the ratio maps and XBIC channel
+			elements.append(channel.split('_')[0])	#exclude the emission line if present (ie I_L -> I)
+
+	trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+	step = 0.05
+
+	for idx, element in enumerate(elements):
+		color = cm.get_cmap('tab10')(idx)
+		ax.text(0.01, 0.98 - 0.08*idx, element,
+			fontname = 'Verdana', 
+			fontsize = 12,
+			fontweight = 'bold',
+			color = color, 
+			transform = ax.transAxes,
+			horizontalalignment = 'left',
+			verticalalignment = 'top')
+
+		for line in emissionlines[element]['xrfEmissionLines']:
+			if (line <= high) and (line >= low):
+				plt.plot([line, line], [1 - (idx+1)*step, 1 - idx*step], transform = trans, color = color, linewidth = 1.5)
+
+
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):
 		os.mkdir(savefolder)
@@ -205,14 +223,22 @@ def plotcorrmat(outputfolder, scan, scandat):
 
 	corrmat = np.corrcoef(flatdata)
 	# generate and save plot
-	fig, ax = plt.subplots()
-	im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'))
+	fig, ax = plt.subplots(figsize = (3,3))
+	im = ax.matshow(corrmat, cmap = cm.get_cmap('RdBu'), vmin = -1, vmax = 1)
 	ax.set_xticks(np.arange(len(channels)))
 	ax.set_yticks(np.arange(len(channels)))
-	ax.set_xticklabels(channels)
+	ax.set_xticklabels(channels, rotation = 45)
 	ax.set_yticklabels(channels)
-	ax.tick_params(axis = 'both', which = 'major', labelsize = 14)
-	
+	ax.tick_params(axis = 'both', bottom = True, top = False, labelbottom = True, labeltop = False, which = 'major', labelsize = 10)
+	ax.title.set_text('Correlation Matrix')
+
+	cbar = fig.colorbar(im,
+		ax = ax,
+		shrink = 0.8,
+		aspect = 30)
+	cbar.set_label('Correlation Coefficient')
+	cbar.ax.tick_params(labelsize = 8)
+
 	savefolder = os.path.join(outputfolder, str(scan))
 	if not os.path.exists(savefolder):
 		os.mkdir(savefolder)

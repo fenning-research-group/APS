@@ -16,17 +16,18 @@ import h5py
 import numpy as np
 from .plotting import truncate_colormap, plotxrf, plotoverview, plotintegratedxrf, plotcorrmat
 
-
+ROOT_DIR = os.path.dirname(__file__)
 
 class build:
 
-	def __init__(self, tableofcontents, outputfolder, title, boundaries = False, pageinfo = "2-ID-D, July 2019", fontname = 'Open Sans', titlefontsize = 16, bodyfontsize = 9, logscale = False, overwrite = True):
+	def __init__(self, tableofcontents, outputfolder, title, author, boundaries = False, pageinfo = "2-ID-D, July 2019", fontname = 'Open Sans', titlefontsize = 16, bodyfontsize = 9, logscale = False, overwrite = True):
 		pdfmetrics.registerFont(TTFont(fontname, 'Vera.ttf'))
 		self.PAGE_HEIGHT = defaultPageSize[1]
 		self.PAGE_WIDTH = defaultPageSize[0]
 		self.styles = getSampleStyleSheet()
-		self.styles.add(ParagraphStyle(name='CenterTitle', fontSize = 24, alignment=TA_CENTER))
-		self.styles.add(ParagraphStyle(name='CenterSubtitle', fontSize = 16, alignment=TA_CENTER, leading = 16))
+		self.styles.add(ParagraphStyle(name='CenterTitle', fontSize = 24, alignment=TA_CENTER, leading = 30))
+		self.styles.add(ParagraphStyle(name='CenterSubtitle', fontSize = 16, alignment=TA_CENTER, leading = 18))
+		self.author = author
 		self.pageInfo = pageinfo
 		self.title = title
 		self.pageinfo = pageinfo
@@ -46,7 +47,8 @@ class build:
 			leftMargin = inch/2,
 			rightMargin = inch/2,
 			bottomMargin = inch/2,
-			topMargin = inch/2)
+			topMargin = inch/2
+			)
 		self.Story = []
 
 	def readscans(self, scanlist):		
@@ -77,8 +79,8 @@ class build:
 		# with h5py.File(f, 'r') as dat:
 		#     energy = dat['MAPS']['energy'][:]
 		scans = list(scanlist.keys())
-		channels = scanlist[scans[0]]['channels']
-		ratiochannels = scanlist[scans[0]]['ratiochannels']
+		# channels = scanlist[scans[0]]['channels']
+		# ratiochannels = scanlist[scans[0]]['ratiochannels']
 
 		files = os.listdir(self.tableofcontents['DataFolder'])
 		scandat = {}
@@ -87,6 +89,8 @@ class build:
 				scan_num = str(int(filename[5:9]))
 
 				if scan_num in scans:
+					channels = scanlist[scan_num]['channels']
+					ratiochannels = scanlist[scan_num]['ratiochannels']
 					f = os.path.join(self.tableofcontents['DataFolder'], filename)
 					x_data, y_data, xrf_data, all_channels, summed_xrf = read_2idd_h5(f)
 
@@ -96,7 +100,6 @@ class build:
 						if channel in channels:
 							npxrf =  np.array(xrf)
 							xrfdat[channel] = npxrf[:,:-2] #remove last two lines, dead from flyscan
-
 					#get the elemental ratio maps
 					for ratioch in ratiochannels:
 						elm1xrf = np.array(xrf_data[all_channels.index(ratioch[0])])[:,:-2]
@@ -108,6 +111,7 @@ class build:
 
 					#build dict with x, y, and xrf data for all scans
 					scandat[int(scan_num)] = {
+						'title': scanlist[scan_num]['title'],
 						'description': scanlist[scan_num]['description'],
 						'x': x_data,
 						'y': y_data,
@@ -124,7 +128,7 @@ class build:
 	def FirstPage(self, canvas, doc):
 		doc = self.doc
 		canvas.saveState()
-		frg_logo = '/Users/graceluo/Documents/GitHub/APS/Sector 2/Scripts/Untitled.png'
+		frg_logo = os.path.join(ROOT_DIR, 'soleil_logo.png')
 		im = pilImage.open(frg_logo)
 		imwidth, imheight = im.size
 		logowidth = doc.width * 0.9
@@ -145,7 +149,7 @@ class build:
 
 	def get_frame_dimensions(self, pageid, frameid):
 		doc = self.doc
-		margin = 0.85
+		margin = 1
 		page = [x for x in doc.pageTemplates if x.id == pageid]
 		frame = [x for x in page[0].frames if x.id == frameid]
 		width = frame[0].width * margin
@@ -155,6 +159,7 @@ class build:
 	def ScaledImage(self, filepath, dimension, size):
 		im = pilImage.open(filepath)
 		imwidth, imheight = im.size
+
 
 		if dimension == 'width' or 'Width':
 			printwidth = size
@@ -269,20 +274,20 @@ class build:
 
 
 		_, hlim = self.get_frame_dimensions('ScanPage', 'overviewmapframe')
-		imoverview = self.ScaledImage(overviewmap_image_filepath, 'height', hlim)
+		imoverview = self.ScaledImage(overviewmap_image_filepath, 'height', hlim*0.9)
 		self.Story.append(imoverview)
 		self.Story.append(FrameBreak())
 		# self.Story.append(PageBreak())
 
 		###integrated xrf spectrum
 		wlim, hlim = self.get_frame_dimensions('ScanPage', 'intspecframe')
-		imintspectrum = self.ScaledImage(integratedspectrum_image_filepath, 'width', wlim)
+		imintspectrum = self.ScaledImage(integratedspectrum_image_filepath, 'width', wlim*0.8)
 		self.Story.append(imintspectrum)
 		self.Story.append(FrameBreak())			
 
 		### correlation matrix
 		wlim, hlim = self.get_frame_dimensions('ScanPage', 'corrmatframe')
-		imcorrmat = self.ScaledImage(corrmat_image_filepath, 'height', hlim)
+		imcorrmat = self.ScaledImage(corrmat_image_filepath, 'width', wlim)
 		self.Story.append(imcorrmat)
 		self.Story.append(FrameBreak())
 
@@ -302,7 +307,10 @@ class build:
 	def build_title_page(self, title, subtitle):
 		self.Story.append(Paragraph(title, self.styles['CenterTitle']))
 		self.Story.append(FrameBreak())
+		self.Story.append(Spacer(1, 0.25*inch))
 		self.Story.append(Paragraph(subtitle, self.styles['CenterSubtitle']))
+		self.Story.append(Spacer(1, 0.25*inch))
+		self.Story.append(Paragraph(self.author, self.styles['CenterSubtitle']))
 		self.Story.append(Paragraph(datetime.today().strftime('%Y-%m-%d'), self.styles['CenterSubtitle']))
 		# self.Story.append(PageBreak())
 
@@ -318,14 +326,20 @@ class build:
 
 
 		#columns
+		num_columns = len(comparisondict)
+		wlim, hlim = self.get_frame_dimensions('Comparison_' + str(num_columns), 'imageframe_1')
+
 		for _, vals in comparisondict.items():
 			self.Story.append(FrameBreak())
 			self.Story.append(Paragraph(vals['description'], self.styles['Normal']))
 			self.Story.append(FrameBreak())
 			imtable =  self.generate_image_matrix(vals['impaths'],
 				max_num_cols = 1,
-				max_width = doc.width / num_columns * margin,
-				max_height = doc.height * 0.4)
+				max_width = wlim,
+				max_height = hlim
+				)
+				# max_width = self.doc.width / num_columns * margin,
+				# max_height = self.doc.height * 0.4)
 			self.Story.append(imtable)
 
 	def buildPageTemplates(self):
@@ -337,13 +351,21 @@ class build:
 			y1 = doc.height/2,
 			width = doc.width,
 			height = doc.height*.4,
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0
 			)
 
 		subtitleframe = Frame(
 			x1 = doc.leftMargin,
-			y1 = doc.height/2 -doc.topMargin,
+			y1 = doc.height/2 - 3*doc.topMargin,
 			width = doc.width,
 			height = doc.height * 0.4,
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0
 			)
 
 		## scan page template
@@ -357,40 +379,60 @@ class build:
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height, 
 			width = text_width,
 			height = text_height,
-			id = 'textframe')
+			id = 'textframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		overviewmapframe = Frame(
 			x1 = doc.leftMargin + text_width,
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height, 
 			width = doc.width - text_width,
 			height = text_height,
-			id = 'overviewmapframe')
+			id = 'overviewmapframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		intspecframe = Frame(
 			x1 = doc.leftMargin ,
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
 			width = intspec_width,
 			height = intspec_height,
-			id = 'intspecframe')
+			id = 'intspecframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		corrmatframe = Frame(
 			x1 = doc.leftMargin + intspec_width,
 			y1 = self.PAGE_HEIGHT - doc.topMargin - text_height - intspec_height, 
 			width = doc.width - intspec_width,
 			height = intspec_height,
-			id = 'corrmatframe')
+			id = 'corrmatframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 		xrfframe = Frame(
 			x1 = doc.leftMargin * 0.5,
 			y1 = doc.bottomMargin, 
 			width = doc.width + doc.leftMargin,
 			height = doc.height - text_height - intspec_height,
-			id = 'xrfframe')
+			id = 'xrfframe',
+			leftPadding = 0,
+			rightPadding = 0,
+			topPadding = 0,
+			bottomPadding = 0)
 
 		## 2-scan comparison page template
 
 		def makecomparisontemplate(num_columns):
 			margin = 1-0.01
-			header_height = doc.height * 0.1 * margin
-			subheader_height = doc.height * 0.1 * margin
-			column_height = (doc.height - header_height - subheader_height) * margin
-			column_width = (doc.width/ (num_columns)) * margin
+			header_height = doc.height * 0.1
+			subheader_height = doc.height * 0.07
+			column_height = (doc.height - header_height - subheader_height)
+			column_width = (doc.width + doc.leftMargin) / (num_columns)
 
 			frames = []
 
@@ -399,21 +441,33 @@ class build:
 							y1 = self.PAGE_HEIGHT - doc.topMargin - header_height, 
 							width = doc.width,
 							height = header_height,
-							id = 'headerframe'))
+							id = 'headerframe',
+							leftPadding = 0,
+							rightPadding = 0,
+							topPadding = 0,
+							bottomPadding = 0))
 			for n in range(num_columns):
 				frames.append(Frame(
-								x1 = doc.leftMargin + n*column_width,
+								x1 = doc.leftMargin/2 + n*column_width,
 								y1 = self.PAGE_HEIGHT - doc.topMargin - header_height - subheader_height, 
 								width = column_width,
 								height = subheader_height,
-								id = 'subheader_' + str(n+1)))
+								id = 'subheader_' + str(n),
+								leftPadding = 0,
+								rightPadding = 0,
+								topPadding = 0,
+								bottomPadding = 0))
 
 				frames.append(Frame(
-								x1 = doc.leftMargin + n*column_width,
+								x1 = doc.leftMargin/2 + n*column_width,
 								y1 = doc.bottomMargin, 
 								width = column_width,
 								height = doc.height - header_height - subheader_height,
-								id = 'headerframe_' + str(n+1)))
+								id = 'imageframe_' + str(n),
+								leftPadding = 0,
+								rightPadding = 0,
+								topPadding = 0,
+								bottomPadding = 0))
 			return frames
 
 
@@ -422,7 +476,10 @@ class build:
 							 PageTemplate(id='ScanPage',frames=[textframe,overviewmapframe,intspecframe,corrmatframe,xrfframe], onPage = self.myLaterPages),
 							 PageTemplate(id='Comparison_2',frames=makecomparisontemplate(2), onPage = self.myLaterPages),
 							 PageTemplate(id='Comparison_3',frames=makecomparisontemplate(3), onPage = self.myLaterPages),
-							 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = self.myLaterPages)
+							 PageTemplate(id='Comparison_4',frames=makecomparisontemplate(4), onPage = self.myLaterPages),
+							 PageTemplate(id='Comparison_5',frames=makecomparisontemplate(5), onPage = self.myLaterPages),
+							 PageTemplate(id='Comparison_6',frames=makecomparisontemplate(6), onPage = self.myLaterPages),
+							 PageTemplate(id='Comparison_7',frames=makecomparisontemplate(7), onPage = self.myLaterPages)
 							 ]
 							)
 
@@ -476,7 +533,7 @@ class build:
 			self.Story.append(PageBreak())
 			self.build_scan_page(
 				scan_number = scan,
-				title = 'Scan ' + str(scan),
+				title = vals['title'],
 				text = vals['description'], 
 				scan_params = scan_params,
 				overviewmap_image_filepath = overviewpath, 
@@ -523,7 +580,7 @@ class build:
 	def writesection(self, section, contents):
 		for key, content in contents.items():
 			if key == 'scans':
-				self.writescanlist(content)
+				self.writescanlist(scanlist = content)
 			elif key == 'description':
 				print('***TitlePage***')
 				self.Story.append(NextPageTemplate('TitlePage'))
