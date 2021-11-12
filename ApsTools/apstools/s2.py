@@ -83,11 +83,12 @@ def load_h5(fpath, clip_flyscan=True, xbic_on_dsic=False, quant_scaler="us_ic"):
 
         allchan = dat["MAPS"]["channel_names"][()].astype("U13").tolist()
         if xbic_on_dsic:
-            xbic = dat["MAPS"]["scalers"][scaler_names.index("ds_ic")][:, xmask]
+            xbic = dat["MAPS"]["scalers"][scaler_names.index("ds_ic")][:, xmask]/dat["MAPS"]["scalers"][scaler_names.index("us_ic")][:, xmask]
     output["maps"] = {}
     for channel, xrf_ in zip(allchan, xrf):
         output["maps"][channel] = np.array(xrf_)
     if xbic_on_dsic:
+
         output["maps"]["xbic"] = xbic
 
     return output
