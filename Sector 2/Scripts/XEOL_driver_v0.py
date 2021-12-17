@@ -1,23 +1,22 @@
-from tqdm import tqdm
-from matplotlib import style
 import numpy as np
 import h5py as h5
 import h5py
-import matplotlib.pyplot as plt
 import os
+import epics
+import epics.devices
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import time
 
-# import Stellarnet_driver3 as sn # usb driver 
+import stellarnet_driver3 as sn # usb driver 
 # you cant import stellarnet unless you are in the right directory regardless of env
 
 
 class Spectrometer:
     """Object to interface with Stellarnet spectrometer"""
 
-    def __init__(self, address=0):
+    def __init__(self, address='ttyS0'):
         self.id, self.__wl = sn.array_get_spec(address)
         self._hdr_times = [
             50,
@@ -51,7 +50,7 @@ class Spectrometer:
         ....
         """
         with h5py.File(filename, 'w') as h5file:
-            recursively_save_dict_contents_to_group(h5file, '/', dic)
+            self.recursively_save_dict_contents_to_group(h5file, '/', dic)
 
     def recursively_save_dict_contents_to_group(self, h5file, path, dic):
         """
@@ -61,7 +60,7 @@ class Spectrometer:
             if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes)):
                 h5file[path + key] = item
             elif isinstance(item, dict):
-                recursively_save_dict_contents_to_group(h5file, path + key + '/', item)
+                self.recursively_save_dict_contents_to_group(h5file, path + key + '/', item)
             else:
                 raise ValueError('Cannot save %s type'%type(item))
 
@@ -70,7 +69,7 @@ class Spectrometer:
         ....
         """
         with h5py.File(filename, 'r') as h5file:
-            return recursively_load_dict_contents_from_group(h5file, '/')
+            return self.recursively_load_dict_contents_from_group(h5file, '/')
 
     def recursively_load_dict_contents_from_group(self, h5file, path):
         """
@@ -81,7 +80,7 @@ class Spectrometer:
             if isinstance(item, h5py._hl.dataset.Dataset):
                 ans[key] = item.value
             elif isinstance(item, h5py._hl.group.Group):
-                ans[key] = recursively_load_dict_contents_from_group(h5file, path + key + '/')
+                ans[key] = self.recursively_load_dict_contents_from_group(h5file, path + key + '/')
         return ans
 
     def open_h5(self, filename):
@@ -185,8 +184,8 @@ class Spectrometer:
         returns raw wavelength + counts read from spectrometer
         """
         t0 = time.time()
-        # spectrum = sn.array_spectrum(self.id, self.__wl) #actual function 
-        spectrum = np.random.rand(2048,2)
+        spectrum = sn.array_spectrum(self.id, self.__wl) #actual function 
+        # spectrum = np.random.rand(2048,2)
         t1 = time.time()
 
         # spectrum.shape
@@ -198,33 +197,46 @@ class Spectrometer:
         tot_time = t1-t0
         return wl, cts, tot_time
 
+    def det_trig_check(self):
+        det_trig = epics.caget('2idd:scan1.T4PV')
+        return det_trig
 
     def XEOL_start(self):
-    #     if epics.caget("2idd:Fscan1.EXSC") == 1: # Scan Starts?
-        test_start = 1
-        if test_start ==1:
+        print('Taking Background...')
+        bg_wl, bg_cts, bg_tot_time = self.capture_raw()
+        print('Background Completed!')
+
+        while epics.caget("2idd:scan2.EXSC") == 0:
+            time.sleep(50e-3)
+            #print('waiting for trigger...')
+
+        if epics.caget("2idd:scan2.EXSC") == 1:
+            print('Trigger Detected!')
+
             
             x_point = 0
             y_point = 0
-
+            
             # dwell = 0
 
             #initializing the data matrix
-            num_x_points = 10
-            num_y_points = 11
+            num_x_points = epics.caget('2idd:scan1.NPTS')
+            num_y_points = epics.caget('2idd:scan2.NPTS')
 
             # #initializing the data matrix
             # num_x_points = epics.caget('2idd:FscanH.NPTS') # make sure that these are right PV values to call
             # num_y_points = epics.caget('number of y steps') # make sure that these are right PV values to call
 
 
-            # dwellPV = epics.PV("2idd:Flyscans:Setup:DwellTime.VAL") # this is the dwell per point value 
+            dwellPV = epics.caget('2iddXMAP:mca1.PLTM') # this is the dwell per point value 
+            
 
-            # wl, cts, time = capture_raw()
-            # npts_wavelength = wl.shape[0]
+            wl, cts, tot_time = self.capture_raw()
+            npts_wavelength = wl.shape[0]
 
-            # data = np.zeros([num_x_points,num_y_points, npts_wavelength])        
-            # time_data = np.zeros([num_x_points,num_y_points])
+            data = np.zeros([num_x_points,num_y_points, npts_wavelength])
+        
+            time_data = np.zeros([num_x_points,num_y_points])
 
             time_data = np.zeros([num_x_points,num_y_points])
 
@@ -249,26 +261,38 @@ class Spectrometer:
                     time_data[x_point, y_point] = tot_time
                     data[x_point, y_point] = cts
 
+                    
+                    det_trigger_check = 0
+                    while det_trigger_check == 0:
+                        det_trigger_check = self.det_trig_check()
+
                     x_point += 1 #move to next column, wait for next step to have started
                 y_point += 1 #move to next row, also wait until next row is started
 
-            data_dict = {'energy': wl,
+            scan_name = f'scan{scan_number-1}_XEOL.h5'
+
+            data_dict = {'scannum':scan_name,
+                        'energy': wl,
                         'time_data': time_data,
-                        'data': data}
+                        'data': data,
+                        'bg_data':bg_cts}
 
             # filename = epics.caget("2iddXMAP:netCDF1:FileName",as_string=True) # get the scan name
-            filename = 'scan100_XEOL.h5'
-            save_dict_to_hdf5(data_dict, filename)
+            folderpath = '/mnt/micdata1/2idd/2021-3/Fenning/XEOL/'
+            scan_number = epics.caget('2idd:saveData_scanNumber')
+
+            filepath = str(folderpath + scan_name)
+            self.save_dict_to_hdf5(data_dict, filepath)
+            print('XEOL Loop Completed!')
+            print('XEOL Scan Saved to: ' + filepath)
+
 
 '''
 code to run:
 
+from XEOL_driver_v0 import Spectrometer
 s = Spectrometer()
-
-s.dwelltime = 50 #epics.PV("2idd:Flyscans:Setup:DwellTime.VAL") # this is the dwell per point value 
-s.numscans = 1  # one scan per spectrum
-s.smooth = 0  # smoothing factor, units unclear
-
+s.dwelltime = 500 #in ms
 s.XEOL_start()
 
 test = open_h5('/Volumes/GoogleDrive/My Drive/Inorganic_PSK/s2_analysis/scan100_XEOL.h5')
