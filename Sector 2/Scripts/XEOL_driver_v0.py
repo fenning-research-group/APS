@@ -269,17 +269,15 @@ class Spectrometer:
                     x_point += 1 #move to next column, wait for next step to have started
                 y_point += 1 #move to next row, also wait until next row is started
 
-            scan_name = f'scan{scan_number-1}_XEOL.h5'
-
-            data_dict = {'scannum':scan_name,
-                        'energy': wl,
+            data_dict = {'energy': wl,
                         'time_data': time_data,
                         'data': data,
                         'bg_data':bg_cts}
 
-            # filename = epics.caget("2iddXMAP:netCDF1:FileName",as_string=True) # get the scan name
-            folderpath = '/mnt/micdata1/2idd/2021-3/Fenning/XEOL/'
             scan_number = epics.caget('2idd:saveData_scanNumber')
+            scan_name = f'scan{scan_number-1}_XEOL.h5'
+            folderpath = '/mnt/micdata1/2idd/2021-3/Fenning/XEOL/'
+
 
             filepath = str(folderpath + scan_name)
             self.save_dict_to_hdf5(data_dict, filepath)
