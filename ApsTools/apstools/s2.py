@@ -53,10 +53,12 @@ def load_h5(fpath, clip_flyscan=True, xbic_on_dsic=False, quant_scaler="us_ic"):
         quant_scaler_values = np.array(
             dat["MAPS"]["scalers"][scaler_names.index(quant_scaler)]
         )[:, xmask]
+        fillval = np.nanmean(quant_scaler_values[quant_scaler_values > 0])
         quant_scaler_values = np.where(
-            quant_scaler_values == 0.0, 1.0, quant_scaler_values
-        )  # change all values that are 0.0 to 1.0, avoid divide by 0
-        quant_scaler_values /= quant_scaler_values.mean()
+            quant_scaler_values == 0.0,
+            fillval,
+            quant_scaler_values,
+        )  # change all values that are 0.0 to mean, avoid divide by 0
         if "/MAPS/XRF_fits" in dat:
             xrf = []
             raw = dat["MAPS"]["XRF_fits"][
@@ -73,21 +75,19 @@ def load_h5(fpath, clip_flyscan=True, xbic_on_dsic=False, quant_scaler="us_ic"):
                 xrf.append(
                     x / quantfactor / 4
                 )  # factor of 4 came from discussion w/ Arthur Glowacki @ APS, and brings this value in agreement with MAPS displayed value. not sure why it is necessary though...
+                # update 20221228: this factor changes from run to run, but is always a round number (have seen 1, 4, and 10). I expect it could be related to usic amplifier settings or similar, but cant find a related value in the h5 file REK
             output["fitted"] = True
         else:
-            xrf = (
-                dat["MAPS"]["XRF_roi"][:, :, xmask]
-                / quant_scaler_values[np.newaxis, :, :]
-            )
+            xrf = dat["MAPS"]["XRF_roi"][:, :, xmask]
             output["fitted"] = False
 
         allchan = dat["MAPS"]["channel_names"][()].astype("U13").tolist()
         if xbic_on_dsic:
-            xbic = dat["MAPS"]["scalers"][scaler_names.index("ds_ic")][:, xmask]
+            xrf.append(
+                dat["MAPS"]["scalers"][scaler_names.index("ds_ic")][:, xmask]
+            )  # append DSIC to channels, used for xbic
+            allchan.append("XBIC")  # label for DSIC
     output["maps"] = {}
     for channel, xrf_ in zip(allchan, xrf):
         output["maps"][channel] = np.array(xrf_)
-    if xbic_on_dsic:
-        output["maps"]["xbic"] = xbic
-
     return output
